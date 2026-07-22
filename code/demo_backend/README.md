@@ -9,6 +9,12 @@ Demo state is stored in:
 code/demo_backend/healthnest_demo.sqlite
 ```
 
+In production, set `DEMO_DB_PATH` so SQLite writes to a persistent disk:
+
+```text
+DEMO_DB_PATH=/var/data/healthnest_demo.sqlite
+```
+
 Schema and fictional seed data live in:
 
 ```text
@@ -35,3 +41,16 @@ http://127.0.0.1:5173/?demo
 
 The backend applies migrations on startup. Delete `healthnest_demo.sqlite` to
 reset the demo to seeded data.
+
+## Render Deployment
+
+The repository root includes a demo-specific `Dockerfile` and `render.yaml`.
+This deploys HealthNest as a single Render Web Service:
+
+- React is built with `VITE_HEALTHNEST_DEMO=true`.
+- FastAPI serves the compiled React app and API routes from the same origin.
+- SQLite stores demo changes at `/var/data/healthnest_demo.sqlite`.
+- Render attaches a 1 GB persistent disk at `/var/data`.
+
+Use Render's Blueprint flow or create a Docker Web Service manually from the
+`portfolio-demo` branch. Persistent disks require a paid Render instance.

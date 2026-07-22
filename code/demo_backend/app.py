@@ -1,4 +1,5 @@
 import json
+import os
 import sqlite3
 import uuid
 from datetime import date, datetime, timedelta
@@ -6,11 +7,13 @@ from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 
 BASE_DIR = Path(__file__).resolve().parent
-DB_PATH = BASE_DIR / "healthnest_demo.sqlite"
+DB_PATH = Path(os.environ.get("DEMO_DB_PATH", BASE_DIR / "healthnest_demo.sqlite"))
 MIGRATIONS_DIR = BASE_DIR / "migrations"
+FRONTEND_DIST = BASE_DIR.parent / "frontend" / "dist"
 
 PATIENT_USER_ID = "patient-user-maya"
 PROVIDER_USER_ID = "provider-user-chen"
@@ -19,9 +22,18 @@ PROVIDER_ID = "provider-chen"
 
 app = FastAPI(title="HealthNest Portfolio Demo API")
 
+cors_origins = [
+    origin.strip()
+    for origin in os.environ.get(
+        "DEMO_CORS_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173",
+    ).split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -34,6 +46,7 @@ def startup() -> None:
 
 
 def connect() -> sqlite3.Connection:
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
@@ -165,6 +178,8 @@ def appointment_query(where: str = "", params: tuple = ()) -> list[dict]:
 
 @app.get("/")
 def root():
+    if FRONTEND_DIST.exists():
+        return FileResponse(FRONTEND_DIST / "index.html")
     return {"message": "HealthNest demo backend running"}
 
 
@@ -859,3 +874,16 @@ async def errors(_request: Request, exc: Exception):
     if isinstance(exc, HTTPException):
         raise exc
     return JSONResponse(status_code=500, content={"detail": str(exc)})
+
+
+if FRONTEND_DIST.exists():
+    assets_dir = FRONTEND_DIST / "assets"
+    if assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def serve_frontend(full_path: str):
+        requested_path = (FRONTEND_DIST / full_path).resolve()
+        if requested_path.is_file() and FRONTEND_DIST.resolve() in requested_path.parents:
+            return FileResponse(requested_path)
+        return FileResponse(FRONTEND_DIST / "index.html")

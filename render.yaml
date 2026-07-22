@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: healthnest-demo
+    runtime: docker
+    repo: https://github.com/aaronbrown2/healthnest-demo
+    branch: portfolio-demo
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    autoDeploy: true
+    disk:
+      name: healthnest-demo-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: DEMO_DB_PATH
+        value: /var/data/healthnest_demo.sqlite
