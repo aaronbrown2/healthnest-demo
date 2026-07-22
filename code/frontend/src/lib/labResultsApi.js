@@ -1,5 +1,5 @@
 import { authApi } from "./authApi";
-import { DEMO_MODE } from "../demo/demoMode";
+import { API_BASE } from "./apiBase";
 
 /**
  * AI-USAGE SUMMARY
@@ -8,9 +8,7 @@ import { DEMO_MODE } from "../demo/demoMode";
  * AI-Assisted Areas: Wrote the jsonRequest / multipartRequest fetch wrappers including the FastAPI detail-array vs string error normalization.
  * Human Contributions: Method-level API surface (list/get/upload/patch/release/archive/fileUrl), token-pulling strategy that matches the existing authApi session shape, and the decision to keep source_format optional on upload for backwards compatibility.
  */
-const API_URL =
-  import.meta.env.VITE_API_URL?.replace(/\/$/, "") ||
-  (DEMO_MODE ? "http://127.0.0.1:8001" : "http://localhost:8000");
+const API_URL = API_BASE;
 async function jsonRequest(path, { method = "GET", body } = {}, retry = true) {
   const t = await authApi.getValidAccessToken();
   const headers = { "Content-Type": "application/json" };

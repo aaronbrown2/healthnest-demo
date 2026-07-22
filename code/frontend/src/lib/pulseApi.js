@@ -1,5 +1,5 @@
 import { authApi } from "./authApi";
-import { DEMO_MODE } from "../demo/demoMode";
+import { API_BASE } from "./apiBase";
 
 /**
  * AI-USAGE SUMMARY
@@ -8,9 +8,7 @@ import { DEMO_MODE } from "../demo/demoMode";
  * AI-Assisted Areas: Drafted the JSON request wrapper (copied the established shape from labResultsApi.js / appointmentsApi.js for consistency) and the SSE reader loop with a manual fetch + ReadableStream decoder because EventSource doesn't carry Authorization headers.
  * Human Contributions: Chose to keep streamMessage pluggable via callbacks (onDelta/onCitation/onSkillOutput/onDone/onError) so the UI can render the same stream into either the drawer or the full workspace without duplicating parsing logic; designed the JSON message envelope (event lines + data lines, blank-line terminated) to match sse-starlette's wire format exactly.
  */
-const API_URL =
-  import.meta.env.VITE_API_URL?.replace(/\/$/, "") ||
-  (DEMO_MODE ? "http://127.0.0.1:8001" : "http://localhost:8000");
+const API_URL = API_BASE;
 async function jsonRequest(path, { method = "GET", body } = {}, retry = true) {
   const t = await authApi.getValidAccessToken();
   const headers = { "Content-Type": "application/json" };

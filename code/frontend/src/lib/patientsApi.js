@@ -1,5 +1,5 @@
 import { authApi } from "./authApi";
-import { DEMO_MODE } from "../demo/demoMode";
+import { API_BASE } from "./apiBase";
 
 /**
  * AI-USAGE SUMMARY
@@ -8,9 +8,7 @@ import { DEMO_MODE } from "../demo/demoMode";
  * AI-Assisted Areas: Wrote the request wrapper, the Map-based id cache, and the getMany batched-fetch helper.
  * Human Contributions: Caching strategy (per-session, no TTL), the name-formatter rules (preferred_name vs first_name precedence, MRN + DOB subtitle), and the decision to swallow individual lookup failures inside getMany rather than fail the whole batch.
  */
-const API_URL =
-  import.meta.env.VITE_API_URL?.replace(/\/$/, "") ||
-  (DEMO_MODE ? "http://127.0.0.1:8001" : "http://localhost:8000");
+const API_URL = API_BASE;
 async function request(path, retry = true) {
   const t = await authApi.getValidAccessToken();
   const headers = {};

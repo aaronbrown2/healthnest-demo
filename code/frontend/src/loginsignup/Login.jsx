@@ -19,7 +19,7 @@ import {
 import { authApi } from "../lib/authApi";
 import "./Login.css";
 
-export default function Login({ onSwitchToSignup, onSignedIn }) {
+export default function Login({ onSwitchToSignup, onSignedIn, onDemoSignIn }) {
   const [role, setRole] = useState("patient");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -117,6 +117,25 @@ export default function Login({ onSwitchToSignup, onSignedIn }) {
           <p className="login-form-sub">
             Select your account type, then enter your credentials.
           </p>
+
+          {onDemoSignIn && (
+            <div className="login-demo-actions">
+              <button
+                type="button"
+                className="login-demo-btn"
+                onClick={() => onDemoSignIn("patient")}
+              >
+                Login to patient demo account
+              </button>
+              <button
+                type="button"
+                className="login-demo-btn"
+                onClick={() => onDemoSignIn("provider")}
+              >
+                Login to provider demo account
+              </button>
+            </div>
+          )}
 
           {/* Role selector */}
           <div className="login-role-selector">

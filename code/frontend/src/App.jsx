@@ -30,7 +30,6 @@ import DfaWorkspace from "./pulse/DfaWorkspace";
 import { usePulse } from "./pulse/PulseProvider";
 import { useMessages } from "./messages/MessagesProvider";
 import DrawerScrim from "./components/DrawerScrim";
-import DemoGate from "./demo/DemoGate";
 import { DEMO_MODE, DEMO_ROLE_KEY, makeDemoSession } from "./demo/demoMode";
 
 // Light-dismiss overlay shared by the two global side drawers. Rendered inside
@@ -308,18 +307,6 @@ export default function App() {
     );
   }
 
-  if (DEMO_MODE) {
-    return (
-      <DemoGate
-        onStart={(role) => {
-          localStorage.setItem(DEMO_ROLE_KEY, role);
-          rememberRole(role);
-          setSession(makeDemoSession(role));
-        }}
-      />
-    );
-  }
-
   return view === "signup" ? (
     <Signup
       key={signupRole}
@@ -332,6 +319,15 @@ export default function App() {
     />
   ) : (
     <Login
+      onDemoSignIn={
+        DEMO_MODE
+          ? (role) => {
+              localStorage.setItem(DEMO_ROLE_KEY, role);
+              rememberRole(role);
+              setSession(makeDemoSession(role));
+            }
+          : undefined
+      }
       onSwitchToSignup={(role) => {
         setSignupRole(role);
         setView("signup");

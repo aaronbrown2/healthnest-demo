@@ -34,6 +34,7 @@ import TodayScheduleCard from "./TodayScheduleCard";
 import { useDfa } from "../pulse/DfaProvider";
 import TopNav from "../components/TopNav";
 import Footer from "../components/Footer";
+import { API_BASE } from "../lib/apiBase";
 
 // For specialty display/default setting
 function formatRole(role) {
@@ -774,7 +775,7 @@ export default function DoctorDashboard({
 
       try {
         const response = await fetch(
-          `${import.meta.env.VITE_API_URL}/providers/visit-overviews`,
+          `${API_BASE}/providers/visit-overviews`,
           {
             headers: getAuthHeaders(),
           },
@@ -802,7 +803,7 @@ export default function DoctorDashboard({
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/providers/unsigned-encounters`,
+        `${API_BASE}/providers/unsigned-encounters`,
         {
           headers: getAuthHeaders(),
         },
@@ -837,7 +838,7 @@ export default function DoctorDashboard({
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/providers/unsigned-encounters/${encounterId}/sign`,
+        `${API_BASE}/providers/unsigned-encounters/${encounterId}/sign`,
         {
           method: "PATCH",
           headers: getAuthHeaders(),
@@ -860,7 +861,7 @@ export default function DoctorDashboard({
 
   const saveEncounterNote = async (visit, noteText, shouldSign = false) => {
     const response = await fetch(
-      `${import.meta.env.VITE_API_URL}/providers/encounter-notes`,
+      `${API_BASE}/providers/encounter-notes`,
       {
         method: "POST",
         headers: {
@@ -954,7 +955,7 @@ export default function DoctorDashboard({
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/providers/visit-overview/${appointmentId}`,
+        `${API_BASE}/providers/visit-overview/${appointmentId}`,
         {
           headers: getAuthHeaders(),
         },
@@ -1043,7 +1044,7 @@ export default function DoctorDashboard({
     try {
       const [response] = await Promise.all([
         fetch(
-          `${import.meta.env.VITE_API_URL}/providers/patient-overview/${patientId}`,
+          `${API_BASE}/providers/patient-overview/${patientId}`,
           {
             headers: getAuthHeaders(),
           },

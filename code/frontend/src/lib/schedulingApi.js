@@ -9,11 +9,9 @@
  * Notes: Validated via `npm run build` and jest.
  */
 import { authApi } from "./authApi";
-import { DEMO_MODE } from "../demo/demoMode";
+import { API_BASE } from "./apiBase";
 
-const BASE =
-  import.meta.env.VITE_API_URL?.replace(/\/$/, "") ||
-  (DEMO_MODE ? "http://127.0.0.1:8001" : "http://localhost:8000");
+const BASE = API_BASE;
 
 async function request(path, options = {}, retry = true) {
   const token = await authApi.getValidAccessToken();
