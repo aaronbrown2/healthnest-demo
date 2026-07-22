@@ -118,6 +118,10 @@
   max-width: 420px;
 }
 
+.login-form-card:has(.login-demo-card-selector) {
+  max-width: 560px;
+}
+
 .login-form-title {
   font-size: 1.375rem;
   font-weight: 600;
@@ -212,12 +216,12 @@
 .login-demo-card-selector {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
+  gap: 1rem;
 }
 
 .login-demo-card {
-  min-height: 154px;
-  padding: 1.35rem 0.9rem 1.2rem;
+  min-height: 210px;
+  padding: 1.75rem 1.25rem;
   transition:
     transform 0.16s ease,
     box-shadow 0.16s ease,
@@ -238,11 +242,12 @@
 }
 
 .login-demo-card .login-role-label {
-  font-size: 0.95rem;
+  font-size: 1.1rem;
 }
 
 .login-demo-card .login-role-desc {
-  font-size: 0.78rem;
+  max-width: 190px;
+  font-size: 0.9rem;
 }
 
 

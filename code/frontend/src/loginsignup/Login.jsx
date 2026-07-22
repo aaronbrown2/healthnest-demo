@@ -134,9 +134,6 @@ export default function Login({ onSwitchToSignup, onSignedIn, onDemoSignIn }) {
                 </span>
                 <span className="login-role-label">Patient Demo</span>
                 <span className="login-role-desc">Access your health dashboard</span>
-                <span className="login-role-check">
-                  <Check size={12} strokeWidth={3} />
-                </span>
               </button>
               <button
                 type="button"
