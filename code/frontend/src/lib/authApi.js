@@ -6,6 +6,8 @@ AI-Assisted Areas: Added WebAuthn helpers (`_b64ToBuffer`, `_bufferToB64`) and t
 Human Contributions: Preserved existing session read/write logic and error handling; integrated flows to reuse existing `request` helper.
 */
 
+import { DEMO_MODE, DEMO_ROLE_KEY, makeDemoSession } from "../demo/demoMode";
+
 const API_URL =
   import.meta.env.VITE_API_URL?.replace(/\/$/, "") || "http://localhost:8000";
 const SESSION_STORAGE_KEY = "healthnest.session";
@@ -105,6 +107,10 @@ function doRefresh() {
 
 export const authApi = {
   getSession() {
+    if (DEMO_MODE) {
+      const role = localStorage.getItem(DEMO_ROLE_KEY);
+      return role ? makeDemoSession(role) : null;
+    }
     return readStoredSession();
   },
 
@@ -114,6 +120,11 @@ export const authApi = {
   },
 
   async signUp({ email, password, metadata }) {
+    if (DEMO_MODE) {
+      const role = metadata?.role || "patient";
+      localStorage.setItem(DEMO_ROLE_KEY, role);
+      return { session: makeDemoSession(role), user: makeDemoSession(role).user };
+    }
     const data = await request("/auth/signup", {
       method: "POST",
       body: { email, password, ...metadata },
@@ -123,6 +134,11 @@ export const authApi = {
   },
 
   async signIn({ email, password, role }) {
+    if (DEMO_MODE) {
+      const demoRole = role || "patient";
+      localStorage.setItem(DEMO_ROLE_KEY, demoRole);
+      return { session: makeDemoSession(demoRole), user: makeDemoSession(demoRole).user };
+    }
     const data = await request("/auth/signin", {
       method: "POST",
       body: role ? { email, password, role } : { email, password },
@@ -132,6 +148,11 @@ export const authApi = {
   },
 
   async signOut() {
+    if (DEMO_MODE) {
+      localStorage.removeItem(DEMO_ROLE_KEY);
+      writeStoredSession(null);
+      return;
+    }
     const session = readStoredSession();
     if (session?.access_token) {
       try {
@@ -154,6 +175,7 @@ export const authApi = {
   // Returns a non-expired access token, proactively refreshing if it's within
   // the skew window. Data clients call this before each request.
   async getValidAccessToken() {
+    if (DEMO_MODE) return this.getSession()?.access_token ?? null;
     const session = readStoredSession();
     if (!session?.access_token) return null;
     if (isExpiringSoon(session.access_token)) {
@@ -165,6 +187,7 @@ export const authApi = {
 
   // Background safety net: refresh shortly before expiry even when idle.
   startAutoRefresh() {
+    if (DEMO_MODE) return;
     if (autoRefreshTimer) return;
     autoRefreshTimer = setInterval(() => {
       const session = readStoredSession();
@@ -182,6 +205,7 @@ export const authApi = {
   },
 
   async fetchUser() {
+    if (DEMO_MODE) return this.getSession()?.user ?? null;
     const session = readStoredSession();
     if (!session?.access_token) return null;
     try {

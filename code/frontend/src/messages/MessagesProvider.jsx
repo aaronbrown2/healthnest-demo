@@ -22,6 +22,7 @@ import {
 import { getSupabaseClient, setRealtimeAuth } from "../lib/supabaseClient";
 import { authApi } from "../lib/authApi";
 import { messagesApi } from "../lib/messagesApi";
+import { DEMO_MODE } from "../demo/demoMode";
 
 const MessagesContext = createContext(null);
 
@@ -113,6 +114,7 @@ export default function MessagesProvider({ session, children }) {
 
   // Effect A — Realtime subscription (sets the initial token, then subscribes).
   useEffect(() => {
+    if (DEMO_MODE) return undefined;
     const myId = session?.user?.id;
     if (!session?.access_token || !myId) return undefined;
 
@@ -159,6 +161,7 @@ export default function MessagesProvider({ session, children }) {
 
   // Effect B — keep the socket's token fresh on refresh / sign-out.
   useEffect(() => {
+    if (DEMO_MODE) return undefined;
     const unsub = authApi.onAuthStateChange((s) => {
       setRealtimeAuth(s?.access_token ?? null);
     });

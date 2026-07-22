@@ -30,6 +30,8 @@ import DfaWorkspace from "./pulse/DfaWorkspace";
 import { usePulse } from "./pulse/PulseProvider";
 import { useMessages } from "./messages/MessagesProvider";
 import DrawerScrim from "./components/DrawerScrim";
+import DemoGate from "./demo/DemoGate";
+import { DEMO_MODE, DEMO_ROLE_KEY, makeDemoSession } from "./demo/demoMode";
 
 // Light-dismiss overlay shared by the two global side drawers. Rendered inside
 // the relevant providers so it can read both drawers' open state and close them.
@@ -154,6 +156,7 @@ export default function App() {
 
   const handleSignOut = () => {
     authApi.signOut();
+    localStorage.removeItem(DEMO_ROLE_KEY);
     localStorage.removeItem(ACTIVE_ROLE_KEY);
     setActiveRole(null);
     setSession(null);
@@ -302,6 +305,18 @@ export default function App() {
     // Realtime subscription + unread state are available on every page.
     return (
       <MessagesProvider session={session}>{signedInTree}</MessagesProvider>
+    );
+  }
+
+  if (DEMO_MODE) {
+    return (
+      <DemoGate
+        onStart={(role) => {
+          localStorage.setItem(DEMO_ROLE_KEY, role);
+          rememberRole(role);
+          setSession(makeDemoSession(role));
+        }}
+      />
     );
   }
 
