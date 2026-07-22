@@ -122,6 +122,20 @@
   max-width: 560px;
 }
 
+.login-form-card:has(.login-demo-card-selector) .login-form-title,
+.login-form-card:has(.login-demo-card-selector) .login-form-sub {
+  text-align: center;
+}
+
+.login-form-card:has(.login-demo-card-selector) .login-form-title {
+  font-size: 2rem;
+}
+
+.login-form-card:has(.login-demo-card-selector) .login-form-sub {
+  margin-bottom: 2rem;
+  font-size: 1rem;
+}
+
 .login-form-title {
   font-size: 1.375rem;
   font-weight: 600;

@@ -118,7 +118,7 @@ export default function Login({ onSwitchToSignup, onSignedIn, onDemoSignIn }) {
           </h2>
           <p className="login-form-sub">
             {onDemoSignIn
-              ? "Select which demo account to sign into"
+              ? "Select a demo account"
               : "Select your account type, then enter your credentials."}
           </p>
 
