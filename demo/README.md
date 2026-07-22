@@ -10,13 +10,26 @@ Expected release media:
 ## Portfolio Demo Branch
 
 The `portfolio-demo` branch includes a public, no-login demo mode for portfolio
-links. Demo-specific data and request handling live under:
+links. Demo-specific SQLite backend code lives under:
+
+```text
+code/demo_backend/
+```
+
+Demo-specific frontend entry UI lives under:
 
 ```text
 code/frontend/src/demo/
 ```
 
-To run the portfolio demo locally:
+Start the SQLite demo backend first:
+
+```bash
+cd code/demo_backend
+python -m uvicorn app:app --reload --port 8001
+```
+
+Then run the frontend:
 
 ```bash
 cd code/frontend
@@ -30,4 +43,6 @@ http://localhost:5173/?demo
 ```
 
 The demo uses fictional patient/provider data and does not require the FastAPI
-backend, Supabase, credentials, or protected health information.
+production backend, Supabase, credentials, or protected health information.
+Messages, availability, and appointments are stored in the local SQLite demo
+database.

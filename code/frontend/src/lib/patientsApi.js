@@ -1,4 +1,5 @@
 import { authApi } from "./authApi";
+import { DEMO_MODE } from "../demo/demoMode";
 
 /**
  * AI-USAGE SUMMARY
@@ -8,7 +9,8 @@ import { authApi } from "./authApi";
  * Human Contributions: Caching strategy (per-session, no TTL), the name-formatter rules (preferred_name vs first_name precedence, MRN + DOB subtitle), and the decision to swallow individual lookup failures inside getMany rather than fail the whole batch.
  */
 const API_URL =
-  import.meta.env.VITE_API_URL?.replace(/\/$/, "") || "http://localhost:8000";
+  import.meta.env.VITE_API_URL?.replace(/\/$/, "") ||
+  (DEMO_MODE ? "http://127.0.0.1:8001" : "http://localhost:8000");
 async function request(path, retry = true) {
   const t = await authApi.getValidAccessToken();
   const headers = {};

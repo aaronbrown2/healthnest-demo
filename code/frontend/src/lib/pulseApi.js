@@ -1,4 +1,5 @@
 import { authApi } from "./authApi";
+import { DEMO_MODE } from "../demo/demoMode";
 
 /**
  * AI-USAGE SUMMARY
@@ -8,7 +9,8 @@ import { authApi } from "./authApi";
  * Human Contributions: Chose to keep streamMessage pluggable via callbacks (onDelta/onCitation/onSkillOutput/onDone/onError) so the UI can render the same stream into either the drawer or the full workspace without duplicating parsing logic; designed the JSON message envelope (event lines + data lines, blank-line terminated) to match sse-starlette's wire format exactly.
  */
 const API_URL =
-  import.meta.env.VITE_API_URL?.replace(/\/$/, "") || "http://localhost:8000";
+  import.meta.env.VITE_API_URL?.replace(/\/$/, "") ||
+  (DEMO_MODE ? "http://127.0.0.1:8001" : "http://localhost:8000");
 async function jsonRequest(path, { method = "GET", body } = {}, retry = true) {
   const t = await authApi.getValidAccessToken();
   const headers = { "Content-Type": "application/json" };

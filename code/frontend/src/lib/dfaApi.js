@@ -7,8 +7,11 @@
  * Human Contributions: Verified route alignment with dfa_router in backend/ai/router.py,
  * confirmed SSE parsing and callback shape are unchanged from the PFA implementation.
  */
+import { DEMO_MODE } from "../demo/demoMode";
+
 const API_URL =
-  import.meta.env.VITE_API_URL?.replace(/\/$/, "") || "http://localhost:8000";
+  import.meta.env.VITE_API_URL?.replace(/\/$/, "") ||
+  (DEMO_MODE ? "http://127.0.0.1:8001" : "http://localhost:8000");
 const SESSION_STORAGE_KEY = "healthnest.session";
 
 function token() {

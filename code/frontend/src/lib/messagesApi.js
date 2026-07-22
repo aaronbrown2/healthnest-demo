@@ -9,8 +9,11 @@
  * Notes: Validated via `npm run build` and manual testing.
  */
 import { authApi } from "./authApi";
+import { DEMO_MODE } from "../demo/demoMode";
 
-const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+const BASE =
+  import.meta.env.VITE_API_URL?.replace(/\/$/, "") ||
+  (DEMO_MODE ? "http://127.0.0.1:8001" : "http://localhost:8000");
 
 async function request(path, options = {}, retry = true) {
   const token = await authApi.getValidAccessToken();

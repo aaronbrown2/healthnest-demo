@@ -52,6 +52,10 @@ demo/*.mov
 demo/*.mp4
 *.zip
 
+# Portfolio demo local database
+code/demo_backend/*.sqlite
+code/demo_backend/*.sqlite-*
+
 # Tool/cache output
 .pytest_cache/
 code/**/.pytest_cache/
