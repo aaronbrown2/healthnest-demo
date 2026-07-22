@@ -113,139 +113,158 @@ export default function Login({ onSwitchToSignup, onSignedIn, onDemoSignIn }) {
       {/* ── Right panel ── */}
       <div className="login-right">
         <div className="login-form-card">
-          <h2 className="login-form-title">Sign in to HealthNest</h2>
+          <h2 className="login-form-title">
+            {onDemoSignIn ? "HealthNest Demo" : "Sign in to HealthNest"}
+          </h2>
           <p className="login-form-sub">
-            Select your account type, then enter your credentials.
+            {onDemoSignIn
+              ? "Select which demo account to sign into"
+              : "Select your account type, then enter your credentials."}
           </p>
 
           {onDemoSignIn && (
-            <div className="login-demo-actions">
+            <div className="login-demo-card-selector">
               <button
                 type="button"
-                className="login-demo-btn"
+                className="login-role-btn login-demo-card"
                 onClick={() => onDemoSignIn("patient")}
               >
-                Login to patient demo account
+                <span className="login-role-avatar active">
+                  <User size={20} />
+                </span>
+                <span className="login-role-label">Patient Demo</span>
+                <span className="login-role-desc">Access your health dashboard</span>
+                <span className="login-role-check">
+                  <Check size={12} strokeWidth={3} />
+                </span>
               </button>
               <button
                 type="button"
-                className="login-demo-btn"
+                className="login-role-btn login-demo-card"
                 onClick={() => onDemoSignIn("provider")}
               >
-                Login to provider demo account
+                <span className="login-role-avatar">
+                  <Stethoscope size={20} />
+                </span>
+                <span className="login-role-label">Provider Demo</span>
+                <span className="login-role-desc">Access your clinical workspace</span>
               </button>
             </div>
           )}
 
-          {/* Role selector */}
-          <div className="login-role-selector">
-            <button
-              type="button"
-              className={`login-role-btn ${role === "patient" ? "active" : ""}`}
-              onClick={() => setRole("patient")}
-            >
-              <span className={`login-role-avatar ${role === "patient" ? "active" : ""}`}>
-                <User size={20} />
-              </span>
-              <span className="login-role-label">Patient</span>
-              <span className="login-role-desc">Access your health dashboard</span>
-              {role === "patient" && (
-                <span className="login-role-check">
-                  <Check size={12} strokeWidth={3} />
-                </span>
-              )}
-            </button>
-            <button
-              type="button"
-              className={`login-role-btn ${role === "provider" ? "active" : ""}`}
-              onClick={() => setRole("provider")}
-            >
-              <span className={`login-role-avatar ${role === "provider" ? "active" : ""}`}>
-                <Stethoscope size={20} />
-              </span>
-              <span className="login-role-label">Provider</span>
-              <span className="login-role-desc">Access your clinical workspace</span>
-              {role === "provider" && (
-                <span className="login-role-check">
-                  <Check size={12} strokeWidth={3} />
-                </span>
-              )}
-            </button>
-          </div>
-
-          {/* Form */}
-          <form className="login-form" onSubmit={handleSubmit}>
-            <div className="login-field">
-              <label className="login-label" htmlFor="email">
-                Email address
-              </label>
-              <input
-                id="email"
-                className="login-input"
-                type="email"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-
-            <div className="login-field">
-              <div className="login-label-row">
-                <label className="login-label" htmlFor="password">
-                  Password
-                </label>
-                <button type="button" className="login-forgot">
-                  Forgot password?
-                </button>
-              </div>
-              <div className="login-input-wrap">
-                <input
-                  id="password"
-                  className="login-input"
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
+          {!onDemoSignIn && (
+            <>
+              {/* Role selector */}
+              <div className="login-role-selector">
                 <button
                   type="button"
-                  className="login-show-btn"
-                  onClick={() => setShowPassword((v) => !v)}
+                  className={`login-role-btn ${role === "patient" ? "active" : ""}`}
+                  onClick={() => setRole("patient")}
                 >
-                  {showPassword ? "hide" : "show"}
+                  <span className={`login-role-avatar ${role === "patient" ? "active" : ""}`}>
+                    <User size={20} />
+                  </span>
+                  <span className="login-role-label">Patient</span>
+                  <span className="login-role-desc">Access your health dashboard</span>
+                  {role === "patient" && (
+                    <span className="login-role-check">
+                      <Check size={12} strokeWidth={3} />
+                    </span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  className={`login-role-btn ${role === "provider" ? "active" : ""}`}
+                  onClick={() => setRole("provider")}
+                >
+                  <span className={`login-role-avatar ${role === "provider" ? "active" : ""}`}>
+                    <Stethoscope size={20} />
+                  </span>
+                  <span className="login-role-label">Provider</span>
+                  <span className="login-role-desc">Access your clinical workspace</span>
+                  {role === "provider" && (
+                    <span className="login-role-check">
+                      <Check size={12} strokeWidth={3} />
+                    </span>
+                  )}
                 </button>
               </div>
-            </div>
 
-            {error && <p className="login-error">{error}</p>}
+              {/* Form */}
+              <form className="login-form" onSubmit={handleSubmit}>
+                <div className="login-field">
+                  <label className="login-label" htmlFor="email">
+                    Email address
+                  </label>
+                  <input
+                    id="email"
+                    className="login-input"
+                    type="email"
+                    autoComplete="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
 
-              <button type="submit" className="login-submit" disabled={loading}>
-                {loading
-                  ? "Signing in…"
-                  : `Sign in as ${role === "patient" ? "Patient" : "Provider"}`}
-              </button>
-            </form>
-            <button
-              type="button"
-              className="login-bio"
-              onClick={handleBiometric}
-              disabled={loading}
-            >
-              Continue with passkey
-            </button>
-          <div className="login-divider">
-            <span>Don't have an account?</span>
-          </div>
+                <div className="login-field">
+                  <div className="login-label-row">
+                    <label className="login-label" htmlFor="password">
+                      Password
+                    </label>
+                    <button type="button" className="login-forgot">
+                      Forgot password?
+                    </button>
+                  </div>
+                  <div className="login-input-wrap">
+                    <input
+                      id="password"
+                      className="login-input"
+                      type={showPassword ? "text" : "password"}
+                      autoComplete="current-password"
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="login-show-btn"
+                      onClick={() => setShowPassword((v) => !v)}
+                    >
+                      {showPassword ? "hide" : "show"}
+                    </button>
+                  </div>
+                </div>
 
-            <button
-              type="button"
-              className="login-register"
-              onClick={() => onSwitchToSignup?.(role)}
-            >
-            Create an account as {role === "patient" ? "Patient" : "Provider"}
-            </button>
+                {error && <p className="login-error">{error}</p>}
+
+                  <button type="submit" className="login-submit" disabled={loading}>
+                    {loading
+                      ? "Signing in…"
+                      : `Sign in as ${role === "patient" ? "Patient" : "Provider"}`}
+                  </button>
+                </form>
+                <button
+                  type="button"
+                  className="login-bio"
+                  onClick={handleBiometric}
+                  disabled={loading}
+                >
+                  Continue with passkey
+                </button>
+              <div className="login-divider">
+                <span>Don't have an account?</span>
+              </div>
+
+                <button
+                  type="button"
+                  className="login-register"
+                  onClick={() => onSwitchToSignup?.(role)}
+                >
+                Create an account as {role === "patient" ? "Patient" : "Provider"}
+                </button>
+            </>
+          )}
         </div>
       </div>
     </div>

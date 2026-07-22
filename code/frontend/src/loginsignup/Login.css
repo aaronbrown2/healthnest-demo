@@ -133,31 +133,6 @@
   line-height: 1.5;
 }
 
-.login-demo-actions {
-  display: grid;
-  gap: 0.625rem;
-  margin-bottom: 1.75rem;
-}
-
-.login-demo-btn {
-  width: 100%;
-  height: 42px;
-  border: 1.5px solid var(--black);
-  border-radius: 8px;
-  background: var(--black);
-  color: var(--white);
-  font-family: var(--font);
-  font-size: 0.8125rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-
-.login-demo-btn:hover {
-  background: transparent;
-  color: var(--black);
-}
-
 /* ── Role selector ────────────────────────────────── */
 .login-role-selector {
   display: grid;
@@ -232,6 +207,42 @@
   font-size: 0.7rem;
   color: var(--gray-dk);
   line-height: 1.4;
+}
+
+.login-demo-card-selector {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.login-demo-card {
+  min-height: 154px;
+  padding: 1.35rem 0.9rem 1.2rem;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    border-color 0.16s ease,
+    background 0.16s ease;
+}
+
+.login-demo-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--black);
+  background: #f7f7f5;
+  box-shadow: 0 10px 24px rgba(17, 17, 16, 0.08);
+}
+
+.login-demo-card:focus-visible {
+  outline: 3px solid rgba(17, 17, 16, 0.18);
+  outline-offset: 3px;
+}
+
+.login-demo-card .login-role-label {
+  font-size: 0.95rem;
+}
+
+.login-demo-card .login-role-desc {
+  font-size: 0.78rem;
 }
 
 
