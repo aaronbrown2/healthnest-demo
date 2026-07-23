@@ -398,14 +398,15 @@ export default function PatientDashboard({
   const labsNonce =
     pageData?.intent === "labs" ? (pageData._nav ?? "labs") : null;
   const [appliedLabsNonce, setAppliedLabsNonce] = useState(labsNonce);
-  if (labsNonce && labsNonce !== appliedLabsNonce) {
-    setAppliedLabsNonce(labsNonce);
-    setView(pageData.labResultId ? "lab-detail" : "labs");
-  }
-
   const [activeLabId, setActiveLabId] = useState(
     () => pageData?.labResultId ?? null,
   );
+  if (labsNonce && labsNonce !== appliedLabsNonce) {
+    setAppliedLabsNonce(labsNonce);
+    if (pageData.labResultId) setActiveLabId(pageData.labResultId);
+    setView(pageData.labResultId ? "lab-detail" : "labs");
+  }
+
   const [labRows, setLabRows] = useState([]);
 
   useEffect(() => {

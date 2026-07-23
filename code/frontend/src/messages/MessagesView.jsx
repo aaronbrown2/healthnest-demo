@@ -44,6 +44,14 @@ export default function MessagesView({ myId, initialContactId = null }) {
     if (initialContactId) openThread?.(initialContactId);
   }, [initialContactId, openThread]);
 
+  // If the user opens Messages from the nav with unread mail, land on the
+  // unread conversation instead of an empty thread pane.
+  useEffect(() => {
+    if (initialContactId || activeContactId || contacts.length === 0) return;
+    const unreadContact = contacts.find((c) => unreadByContact[c.user_id] > 0);
+    if (unreadContact) openThread?.(unreadContact.user_id);
+  }, [initialContactId, activeContactId, contacts, unreadByContact, openThread]);
+
   // When this view unmounts (navigating away from Messages), clear the active
   // conversation so incoming messages bump the unread badge instead of being
   // auto-read off-screen.

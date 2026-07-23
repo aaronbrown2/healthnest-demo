@@ -15,6 +15,7 @@ import MessagesView from "../messages/MessagesView";
 
 const mockOpenThread = jest.fn();
 const mockLoadContacts = jest.fn();
+let mockMessagesState = {};
 
 jest.mock("../messages/MessagesProvider", () => ({
   useMessages: () => ({
@@ -26,12 +27,14 @@ jest.mock("../messages/MessagesProvider", () => ({
     closeThread: jest.fn(),
     send: jest.fn(),
     loadContacts: mockLoadContacts,
+    ...mockMessagesState,
   }),
 }));
 
 afterEach(() => {
   cleanup();
   jest.clearAllMocks();
+  mockMessagesState = {};
 });
 
 describe("MessagesView", () => {
@@ -48,5 +51,21 @@ describe("MessagesView", () => {
 
     expect(mockOpenThread).not.toHaveBeenCalled();
     expect(mockLoadContacts).toHaveBeenCalled();
+  });
+
+  test("opens the first unread conversation when no initialContactId is provided", async () => {
+    mockMessagesState = {
+      contacts: [
+        { user_id: "peer-read", name: "Read Contact" },
+        { user_id: "peer-unread", name: "Unread Contact" },
+      ],
+      unreadByContact: { "peer-unread": 2 },
+    };
+
+    render(<MessagesView myId="me-1" />);
+
+    await waitFor(() => {
+      expect(mockOpenThread).toHaveBeenCalledWith("peer-unread");
+    });
   });
 });

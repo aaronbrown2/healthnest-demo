@@ -118,9 +118,15 @@ export default function NotificationBell() {
     } else if (n.nav) {
       // Let App route this (it can set pageData, e.g. the labs view).
       navSeqRef.current += 1;
+      const navData = {
+        ...(n.data || {}),
+        ...(n.data?.lab_result_id ? { labResultId: n.data.lab_result_id } : {}),
+        ...(n.labResultId ? { labResultId: n.labResultId } : {}),
+        _nav: navSeqRef.current,
+      };
       window.dispatchEvent(
         new CustomEvent("hn:navigate", {
-          detail: { page: n.nav, data: { _nav: navSeqRef.current } },
+          detail: { page: n.nav, data: navData },
         }),
       );
     }

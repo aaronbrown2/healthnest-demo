@@ -50,11 +50,11 @@ export async function onRequest(context) {
     if (request.method === "GET" && path === "/messages/unread") return json(await unread(db, sessionId, currentRole(request)));
     if (request.method === "GET" && path === "/messages/inbox") return json([]);
     if (request.method === "POST" && path === "/messages") return sendMessage(db, sessionId, request);
-    if (request.method === "GET" && path === "/lab-results") return json(await listLabs(db, sessionId, url.searchParams));
+    if (request.method === "GET" && path === "/lab-results") return json(await listLabs(db, sessionId, url.searchParams, currentRole(request)));
     if (request.method === "GET" && path === "/providers/visit-overviews") return json(await visitOverviews(db, sessionId));
     if (request.method === "GET" && path === "/providers/unsigned-encounters") return json(await unsignedEncounters(db, sessionId));
     if (request.method === "POST" && path === "/providers/encounter-notes") return encounterNote(db, sessionId, request);
-    if (request.method === "GET" && path === "/notifications") return json(notifications());
+    if (request.method === "GET" && path === "/notifications") return json(await notifications(db, sessionId, currentRole(request)));
     if (request.method === "GET" && ["/ai/conversations", "/ai/provider/conversations"].includes(path)) return json(aiConversations());
     if (request.method === "POST" && ["/ai/conversations", "/ai/provider/conversations"].includes(path)) return json(aiConversations()[0], 201);
 
@@ -254,8 +254,9 @@ async function editAppointmentNotes(db, sessionId, id, request) {
 
 async function cancelAppointment(db, sessionId, id) {
   const appointment = await db.prepare("SELECT availability_id FROM appointments WHERE session_id = ? AND id = ?").bind(sessionId, id).first();
-  if (appointment) await db.batch([
-    db.prepare("UPDATE appointments SET status = 'cancelled' WHERE session_id = ? AND id = ?").bind(sessionId, id),
+  if (!appointment) return json({ detail: "Appointment not found." }, 404);
+  await db.batch([
+    db.prepare("DELETE FROM appointments WHERE session_id = ? AND id = ?").bind(sessionId, id),
     db.prepare("UPDATE provider_availability SET is_booked = 0 WHERE session_id = ? AND id = ?").bind(sessionId, appointment.availability_id),
   ]);
   return empty();
@@ -265,9 +266,17 @@ async function rescheduleAppointment(db, sessionId, id, request) {
   const data = await body(request);
   const appointment = await db.prepare("SELECT * FROM appointments WHERE session_id = ? AND id = ?").bind(sessionId, id).first();
   const slot = await db.prepare("SELECT * FROM provider_availability WHERE session_id = ? AND id = ?").bind(sessionId, data.availability_id).first();
-  if (!appointment || !slot || slot.is_booked || slot.blocked) {
+  if (!appointment || !slot || slot.blocked) {
     return json({ detail: "Slot is no longer available." }, 409);
   }
+  if (slot.provider_id !== appointment.provider_id) {
+    return json({ detail: "Cannot reschedule to a different provider." }, 400);
+  }
+  if (slot.id === appointment.availability_id) {
+    const [current] = await appointmentQuery(db, sessionId, "a.id = ?", [id]);
+    return json(current);
+  }
+  if (slot.is_booked) return json({ detail: "Slot is no longer available." }, 409);
   await db.batch([
     db.prepare("UPDATE provider_availability SET is_booked = 0 WHERE session_id = ? AND id = ?").bind(sessionId, appointment.availability_id),
     db.prepare("UPDATE provider_availability SET is_booked = 1 WHERE session_id = ? AND id = ?").bind(sessionId, slot.id),
@@ -347,10 +356,18 @@ async function providerCreateAppointment(db, sessionId, request) {
   const availableTime = data.available_time || data.time;
   const slotId = `slot-${PROVIDER_ID}-${availableDate}-${String(availableTime || "").replace(":", "")}`;
   const apptId = `appt-${crypto.randomUUID().slice(0, 8)}`;
+  const patientId = data.patient_id || PATIENT_ID;
+  const relationship = await db.prepare("SELECT 1 FROM care_team WHERE patient_id = ? AND provider_id = ? AND active = 1").bind(patientId, PROVIDER_ID).first();
+  if (!relationship) return json({ detail: "Patient is not on your care team." }, 403);
+  const existingSlot = await db.prepare("SELECT * FROM provider_availability WHERE session_id = ? AND id = ?").bind(sessionId, slotId).first();
+  if (existingSlot?.is_booked) {
+    const live = await db.prepare("SELECT id FROM appointments WHERE session_id = ? AND availability_id = ? AND status != 'cancelled' LIMIT 1").bind(sessionId, slotId).first();
+    if (live) return json({ detail: "That time is already booked." }, 409);
+  }
   await db.batch([
     db.prepare("INSERT OR IGNORE INTO provider_availability (session_id, id, provider_id, available_date, available_time, is_booked, blocked) VALUES (?, ?, ?, ?, ?, 1, 0)").bind(sessionId, slotId, PROVIDER_ID, availableDate, availableTime),
     db.prepare("UPDATE provider_availability SET is_booked = 1, blocked = 0 WHERE session_id = ? AND id = ?").bind(sessionId, slotId),
-    db.prepare("INSERT INTO appointments (session_id, id, patient_id, provider_id, availability_id, status, notes) VALUES (?, ?, ?, ?, ?, 'scheduled', ?)").bind(sessionId, apptId, data.patient_id || PATIENT_ID, PROVIDER_ID, slotId, data.notes || ""),
+    db.prepare("INSERT INTO appointments (session_id, id, patient_id, provider_id, availability_id, status, notes) VALUES (?, ?, ?, ?, ?, 'scheduled', ?)").bind(sessionId, apptId, patientId, PROVIDER_ID, slotId, data.notes || ""),
   ]);
   return json((await appointmentQuery(db, sessionId, "a.id = ?", [apptId]))[0], 201);
 }
@@ -369,8 +386,40 @@ async function patientById(db, id) {
 
 async function contacts(db, sessionId, role) {
   const me = currentUserId(role);
-  const rows = await db.prepare("SELECT du.*, MAX(m.sent_at) AS last_message_at, SUM(CASE WHEN m.recipient_id = ? AND m.read_at IS NULL THEN 1 ELSE 0 END) AS unread_count FROM messages m JOIN demo_users du ON du.id = CASE WHEN m.sender_id = ? THEN m.recipient_id ELSE m.sender_id END WHERE m.session_id = ? AND (m.sender_id = ? OR m.recipient_id = ?) GROUP BY du.id ORDER BY last_message_at DESC").bind(me, me, sessionId, me, me).all();
-  return rows.results.map((row) => ({ id: row.id, user_id: row.id, name: `${row.first_name} ${row.last_name}`, role: row.role, specialty: row.specialty, unread_count: row.unread_count || 0, last_message_at: row.last_message_at }));
+  const rows = role === "provider"
+    ? await db.prepare(`SELECT du.id, du.role, du.first_name, du.last_name, p.mrn AS specialty,
+          MAX(m.sent_at) AS last_message_at,
+          SUM(CASE WHEN m.recipient_id = ? AND m.read_at IS NULL THEN 1 ELSE 0 END) AS unread_count
+        FROM care_team ct
+        JOIN patients p ON p.id = ct.patient_id
+        JOIN demo_users du ON du.id = p.user_id
+        LEFT JOIN messages m ON m.session_id = ? AND ((m.sender_id = ? AND m.recipient_id = du.id) OR (m.sender_id = du.id AND m.recipient_id = ?))
+        WHERE ct.provider_id = ? AND ct.active = 1
+        GROUP BY du.id, du.role, du.first_name, du.last_name, p.mrn
+        ORDER BY COALESCE(last_message_at, ''), du.last_name`).bind(me, sessionId, me, me, PROVIDER_ID).all()
+    : await db.prepare(`SELECT du.id, du.role, du.first_name, du.last_name, pr.title, pr.specialty,
+          MAX(m.sent_at) AS last_message_at,
+          SUM(CASE WHEN m.recipient_id = ? AND m.read_at IS NULL THEN 1 ELSE 0 END) AS unread_count
+        FROM care_team ct
+        JOIN providers pr ON pr.id = ct.provider_id
+        JOIN demo_users du ON du.id = pr.user_id
+        LEFT JOIN messages m ON m.session_id = ? AND ((m.sender_id = ? AND m.recipient_id = du.id) OR (m.sender_id = du.id AND m.recipient_id = ?))
+        WHERE ct.patient_id = ? AND ct.active = 1
+        GROUP BY du.id, du.role, du.first_name, du.last_name, pr.title, pr.specialty
+        ORDER BY COALESCE(last_message_at, ''), du.last_name`).bind(me, sessionId, me, me, PATIENT_ID).all();
+  return rows.results
+    .map((row) => ({
+      id: row.id,
+      user_id: row.id,
+      name: role === "provider"
+        ? `${row.first_name} ${row.last_name}`
+        : [row.title, row.first_name, row.last_name].filter(Boolean).join(" "),
+      role: row.role,
+      specialty: row.specialty,
+      unread_count: row.unread_count || 0,
+      last_message_at: row.last_message_at,
+    }))
+    .sort((a, b) => (b.unread_count > 0) - (a.unread_count > 0) || String(b.last_message_at || "").localeCompare(String(a.last_message_at || "")) || a.name.localeCompare(b.name));
 }
 
 async function messageThread(db, sessionId, contactId, role) {
@@ -385,19 +434,63 @@ async function markThreadRead(db, sessionId, contactId, role) {
 }
 
 async function unread(db, sessionId, role) {
-  const row = await db.prepare("SELECT COUNT(*) AS total FROM messages WHERE session_id = ? AND recipient_id = ? AND read_at IS NULL").bind(sessionId, currentUserId(role)).first();
-  return { total: row.total || 0 };
+  const rows = await db.prepare("SELECT sender_id, COUNT(*) AS count FROM messages WHERE session_id = ? AND recipient_id = ? AND read_at IS NULL GROUP BY sender_id").bind(sessionId, currentUserId(role)).all();
+  return Object.fromEntries((rows.results || []).map((row) => [row.sender_id, row.count || 0]));
 }
 
 async function sendMessage(db, sessionId, request) {
   const data = await body(request);
+  const senderId = currentUserId(currentRole(request));
+  if (!data.recipient_id || senderId === data.recipient_id) return json({ detail: "You cannot message yourself." }, 400);
+  const relationship = await usersShareActiveRelationship(db, senderId, data.recipient_id);
+  if (!relationship) return json({ detail: "You can only message members of your care team." }, 403);
   const id = `msg-${crypto.randomUUID().slice(0, 8)}`;
-  await db.prepare("INSERT INTO messages (session_id, id, sender_id, recipient_id, body) VALUES (?, ?, ?, ?, ?)").bind(sessionId, id, currentUserId(currentRole(request)), data.recipient_id, data.body || "").run();
+  await db.prepare("INSERT INTO messages (session_id, id, sender_id, recipient_id, body) VALUES (?, ?, ?, ?, ?)").bind(sessionId, id, senderId, data.recipient_id, data.body || "").run();
   return json(await db.prepare("SELECT * FROM messages WHERE session_id = ? AND id = ?").bind(sessionId, id).first(), 201);
 }
 
-async function listLabs(db, sessionId, params) {
-  const rows = await db.prepare("SELECT * FROM lab_results WHERE session_id = ? AND patient_id = ? ORDER BY COALESCE(resulted_at, collected_at) DESC LIMIT ? OFFSET ?").bind(sessionId, params.get("patient_id") || PATIENT_ID, Number(params.get("limit") || 50), Number(params.get("offset") || 0)).all();
+async function usersShareActiveRelationship(db, userA, userB) {
+  const row = await db.prepare(`SELECT 1
+    FROM care_team ct
+    JOIN patients p ON p.id = ct.patient_id
+    JOIN providers pr ON pr.id = ct.provider_id
+    WHERE ct.active = 1
+      AND ((p.user_id = ? AND pr.user_id = ?) OR (p.user_id = ? AND pr.user_id = ?))
+    LIMIT 1`).bind(userA, userB, userB, userA).first();
+  return Boolean(row);
+}
+
+async function listLabs(db, sessionId, params, role) {
+  const limit = Math.max(1, Math.min(Number(params.get("limit") || 50), 100));
+  const offset = Math.max(0, Number(params.get("offset") || 0));
+  const statusFilter = params.get("status_filter");
+  const patientId = params.get("patient_id");
+  const where = ["lr.session_id = ?"];
+  const values = [sessionId];
+  if (role === "patient") {
+    where.push("lr.patient_id = ?");
+    values.push(PATIENT_ID);
+    where.push("lr.status = 'released'");
+  } else if (patientId) {
+    where.push("lr.patient_id = ?");
+    values.push(patientId);
+  } else {
+    where.push("lr.patient_id IN (SELECT patient_id FROM care_team WHERE provider_id = ? AND active = 1)");
+    values.push(PROVIDER_ID);
+  }
+  if (role === "provider" && statusFilter) {
+    where.push("lr.status = ?");
+    values.push(statusFilter);
+  }
+  const rows = await db.prepare(`SELECT lr.*,
+      COUNT(e.id) AS entries_count,
+      SUM(CASE WHEN e.abnormal_flag != 'normal' THEN 1 ELSE 0 END) AS flagged_count
+    FROM lab_results lr
+    LEFT JOIN lab_result_entries e ON e.session_id = lr.session_id AND e.lab_result_id = lr.id
+    WHERE ${where.join(" AND ")}
+    GROUP BY lr.id
+    ORDER BY COALESCE(lr.resulted_at, lr.collected_at) DESC
+    LIMIT ? OFFSET ?`).bind(...values, limit, offset).all();
   return rows.results;
 }
 
@@ -405,23 +498,69 @@ async function labById(db, sessionId, id) {
   const lab = await db.prepare("SELECT * FROM lab_results WHERE session_id = ? AND id = ?").bind(sessionId, id).first();
   if (!lab) throw Object.assign(new Error("Lab result not found."), { status: 404 });
   const entries = await db.prepare("SELECT * FROM lab_result_entries WHERE session_id = ? AND lab_result_id = ?").bind(sessionId, id).all();
-  return { ...lab, entries: entries.results };
+  const entryRows = entries.results || [];
+  return {
+    ...lab,
+    entries: entryRows,
+    entries_count: entryRows.length,
+    flagged_count: entryRows.filter((entry) => entry.abnormal_flag && entry.abnormal_flag !== "normal").length,
+  };
 }
 
 async function updateLabStatus(db, sessionId, id, status) {
-  await db.prepare("UPDATE lab_results SET status = ?, released_at = COALESCE(released_at, CURRENT_TIMESTAMP) WHERE session_id = ? AND id = ?").bind(status, sessionId, id).run();
+  if (status === "released") {
+    await db.prepare("UPDATE lab_results SET status = 'released', released_at = COALESCE(released_at, CURRENT_TIMESTAMP) WHERE session_id = ? AND id = ?").bind(sessionId, id).run();
+  } else {
+    await db.prepare("UPDATE lab_results SET status = ? WHERE session_id = ? AND id = ?").bind(status, sessionId, id).run();
+  }
   return json(await labById(db, sessionId, id));
 }
 
 async function patchLab(db, sessionId, id, request) {
   const data = await body(request);
-  await db.prepare("UPDATE lab_results SET status = COALESCE(?, status), released_at = COALESCE(?, released_at) WHERE session_id = ? AND id = ?").bind(data.status || null, data.released_at || null, sessionId, id).run();
+  const current = await labById(db, sessionId, id);
+  const status = data.transition_to_reviewed && current.status === "uploaded"
+    ? "reviewed"
+    : data.status || current.status;
+  await db.prepare(`UPDATE lab_results
+    SET lab_name = COALESCE(?, lab_name),
+        collected_at = COALESCE(?, collected_at),
+        resulted_at = COALESCE(?, resulted_at),
+        status = ?,
+        released_at = COALESCE(?, released_at)
+    WHERE session_id = ? AND id = ?`).bind(data.lab_name || null, data.collected_at || null, data.resulted_at || null, status, data.released_at || null, sessionId, id).run();
+  for (const entry of data.entries || []) {
+    await db.prepare(`UPDATE lab_result_entries
+      SET component_name = COALESCE(?, component_name),
+          loinc_code = COALESCE(?, loinc_code),
+          value = COALESCE(?, value),
+          unit = COALESCE(?, unit),
+          reference_range = COALESCE(?, reference_range),
+          abnormal_flag = COALESCE(?, abnormal_flag)
+      WHERE session_id = ? AND lab_result_id = ? AND id = ?`)
+      .bind(entry.component_name || null, entry.loinc_code || null, entry.value ?? null, entry.unit || null, entry.reference_range || null, entry.abnormal_flag || null, sessionId, id, entry.id)
+      .run();
+  }
   return json(await labById(db, sessionId, id));
 }
 
 async function visitOverviews(db, sessionId) {
   const rows = await db.prepare("SELECT vo.*, p.first_name, p.preferred_name, p.last_name FROM visit_overviews vo JOIN patients p ON p.id = vo.patient_id WHERE vo.session_id = ? ORDER BY vo.appointment_time").bind(sessionId).all();
-  return rows.results.map((row) => ({ id: row.id, appointmentId: row.id, appointmentTime: row.appointment_time, visitType: row.visit_type, patientName: `${row.preferred_name || row.first_name} ${row.last_name}`, patientId: row.patient_id }));
+  return rows.results.map((row) => {
+    const name = `${row.preferred_name || row.first_name} ${row.last_name}`;
+    return {
+      id: row.id,
+      time: row.appointment_time,
+      type: row.visit_type,
+      name,
+      initials: `${row.first_name?.[0] || ""}${row.last_name?.[0] || ""}`,
+      appointmentId: row.id,
+      appointmentTime: row.appointment_time,
+      visitType: row.visit_type,
+      patientName: name,
+      patientId: row.patient_id,
+    };
+  });
 }
 
 async function visitOverviewDetail(db, sessionId, id) {
@@ -436,18 +575,42 @@ async function patientOverview(db, sessionId, patientId) {
 }
 
 function visitDetail(row) {
+  const patient = {
+    id: row.patient_id,
+    name: `${row.preferred_name || row.first_name} ${row.last_name}`,
+    initials: `${row.first_name?.[0] || ""}${row.last_name?.[0] || ""}`,
+    mrn: row.mrn,
+    dateOfBirth: row.date_of_birth,
+    first_name: row.first_name,
+    preferred_name: row.preferred_name,
+    last_name: row.last_name,
+    date_of_birth: row.date_of_birth,
+  };
+  const appointment = { id: row.id, time: row.appointment_time, visitType: row.visit_type };
+  const recentHistory = JSON.parse(row.recent_history);
+  const activeProblems = JSON.parse(row.active_problems);
+  const medications = JSON.parse(row.medications);
+  const labs = JSON.parse(row.labs);
+  const openIssues = JSON.parse(row.open_issues);
+  const missingSections = JSON.parse(row.missing_sections);
   return {
     id: row.id,
-    patient: { id: row.patient_id, first_name: row.first_name, preferred_name: row.preferred_name, last_name: row.last_name, mrn: row.mrn, date_of_birth: row.date_of_birth },
-    appointment: { id: row.id, time: row.appointment_time, visitType: row.visit_type },
+    patient,
+    appointment,
     generatedFrom: row.generated_from,
+    recentHistory,
+    activeProblems,
+    medications,
+    labs,
+    openIssues,
+    missingSections,
     sections: {
-      recentHistory: JSON.parse(row.recent_history),
-      activeProblems: JSON.parse(row.active_problems),
-      medications: JSON.parse(row.medications),
-      labs: JSON.parse(row.labs),
-      openIssues: JSON.parse(row.open_issues),
-      missingSections: JSON.parse(row.missing_sections),
+      recentHistory,
+      activeProblems,
+      medications,
+      labs,
+      openIssues,
+      missingSections,
     },
   };
 }
@@ -468,8 +631,80 @@ async function encounterNote(db, sessionId, request) {
   return json({ ok: true });
 }
 
-function notifications() {
-  return [{ id: "notif-lab", type: "lab_result", title: "New lab result released", body: "Comprehensive Metabolic Panel is ready to review.", created_at: "2026-07-16T18:15:00", read_at: null, data: { lab_result_id: "lab-cmp-2026" } }];
+async function notifications(db, sessionId, role) {
+  const me = currentUserId(role);
+  const items = [];
+  const messages = await db.prepare(`SELECT m.*, du.first_name, du.last_name
+    FROM messages m
+    JOIN demo_users du ON du.id = m.sender_id
+    WHERE m.session_id = ? AND m.recipient_id = ?
+    ORDER BY m.sent_at DESC
+    LIMIT 10`).bind(sessionId, me).all();
+  for (const message of messages.results || []) {
+    items.push({
+      id: `msg-${message.id}`,
+      type: "message",
+      title: `New message from ${message.first_name} ${message.last_name}`,
+      body: (message.body || "").slice(0, 90),
+      created_at: message.sent_at,
+      read_at: message.read_at,
+      contact_id: message.sender_id,
+    });
+  }
+
+  if (role === "patient") {
+    const appointments = await db.prepare(`SELECT a.*, pr.title, pr.first_name, pr.last_name
+      FROM appointments a
+      JOIN providers pr ON pr.id = a.provider_id
+      WHERE a.session_id = ? AND a.patient_id = ? AND a.status != 'cancelled'
+      ORDER BY a.created_at DESC
+      LIMIT 10`).bind(sessionId, PATIENT_ID).all();
+    for (const appointment of appointments.results || []) {
+      items.push({
+        id: `appt-${appointment.id}`,
+        type: "appointment",
+        title: `Appointment booked with ${[appointment.title, appointment.first_name, appointment.last_name].filter(Boolean).join(" ")}`,
+        body: "",
+        created_at: appointment.created_at,
+        nav: "appointments",
+      });
+    }
+    const labs = await db.prepare("SELECT * FROM lab_results WHERE session_id = ? AND patient_id = ? AND status = 'released' AND released_at IS NOT NULL ORDER BY released_at DESC LIMIT 10").bind(sessionId, PATIENT_ID).all();
+    for (const lab of labs.results || []) {
+      items.push({
+        id: `lab-${lab.id}`,
+        type: "lab",
+        title: `New lab result: ${lab.lab_name || "Lab result"}`,
+        body: "",
+        created_at: lab.released_at,
+        nav: "labs",
+        data: { lab_result_id: lab.id },
+        labResultId: lab.id,
+      });
+    }
+  } else {
+    const appointments = await db.prepare(`SELECT a.*, p.first_name, p.preferred_name, p.last_name
+      FROM appointments a
+      JOIN patients p ON p.id = a.patient_id
+      WHERE a.session_id = ? AND a.provider_id = ? AND a.status != 'cancelled'
+      ORDER BY a.created_at DESC
+      LIMIT 10`).bind(sessionId, PROVIDER_ID).all();
+    for (const appointment of appointments.results || []) {
+      items.push({
+        id: `appt-${appointment.id}`,
+        type: "appointment",
+        title: `New appointment with ${appointment.preferred_name || appointment.first_name} ${appointment.last_name}`,
+        body: "",
+        created_at: appointment.created_at,
+        nav: "schedule",
+      });
+    }
+  }
+
+  return items
+    .filter((item) => item.created_at)
+    .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+    .slice(0, 30);
 }
 
 function aiConversations() {
