@@ -10,7 +10,7 @@
 // Human Contributions: Layout/UX decisions, default-to-today + scroll-to-now, and
 //   verification.
 // Notes: Validated via `npm run build`, jest, and manual testing.
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { ChevronLeft, ChevronRight, CalendarPlus, Plus } from "lucide-react";
 import { schedulingApi } from "../lib/schedulingApi";
 import { formatApptTime } from "../lib/appointmentsApi";
@@ -49,6 +49,12 @@ function groupByDate(items) {
     (acc[it.available_date] ||= []).push(it);
     return acc;
   }, {});
+}
+
+function dateFromKey(key) {
+  if (!key) return null;
+  const date = new Date(`${key}T12:00:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 // ── Week grid (time gutter + 7 day columns) ─────────────────────────────────
@@ -174,7 +180,10 @@ function MonthView({ anchor, apptsByDate, onSelectDay }) {
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────────
-export default function ProviderSchedule({ onMessagePatient }) {
+export default function ProviderSchedule({
+  onMessagePatient,
+  initialFocus = null,
+}) {
   const [viewMode, setViewMode] = useState("day");
   const [anchor, setAnchor] = useState(() => new Date());
   const [availOpen, setAvailOpen] = useState(false);
@@ -190,7 +199,7 @@ export default function ProviderSchedule({ onMessagePatient }) {
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState("");
 
-  const refresh = () => {
+  const refresh = useCallback(() => {
     Promise.all([
       schedulingApi.getAppointments().catch(() => []),
       schedulingApi.getAvailability().catch(() => []),
@@ -204,11 +213,36 @@ export default function ProviderSchedule({ onMessagePatient }) {
         setRules(r || []);
       })
       .finally(() => setLoading(false));
-  };
+  }, []);
 
   useEffect(() => {
     refresh();
-  }, []);
+  }, [refresh]);
+
+  const focusAppointmentId =
+    initialFocus?.appointmentId || initialFocus?.appointment_id || null;
+  const focusDate = initialFocus?.available_date || initialFocus?.date || null;
+
+  useEffect(() => {
+    if (!focusAppointmentId && !focusDate) return;
+    refresh();
+  }, [focusAppointmentId, focusDate, refresh]);
+
+  useEffect(() => {
+    if (!focusAppointmentId && !focusDate) return;
+
+    const focusedAppointment = focusAppointmentId
+      ? appointments.find((appt) => appt.id === focusAppointmentId)
+      : null;
+    const targetDate = focusedAppointment?.available_date || focusDate;
+    const nextAnchor = dateFromKey(targetDate);
+
+    if (nextAnchor) setAnchor(nextAnchor);
+    setViewMode("day");
+    if (focusedAppointment) {
+      setDayPanel({ type: "details", appt: focusedAppointment });
+    }
+  }, [focusAppointmentId, focusDate, appointments]);
 
   const apptsByDate = groupByDate(appointments);
   const openByDate = groupByDate(

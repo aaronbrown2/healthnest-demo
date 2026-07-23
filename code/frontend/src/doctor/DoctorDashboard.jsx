@@ -704,6 +704,7 @@ export default function DoctorDashboard({
   onSignOut,
   onNavigate,
   initialView = "home",
+  scheduleFocus = null,
 }) {
   const currentUser = getCurrUser(user);
   const dfa = useDfa();
@@ -1501,7 +1502,10 @@ export default function DoctorDashboard({
           />
         )}
         {view === "schedule" && (
-          <ProviderSchedule onMessagePatient={messagePatient} />
+          <ProviderSchedule
+            initialFocus={scheduleFocus}
+            onMessagePatient={messagePatient}
+          />
         )}
 
         {view !== "home" ? null : (

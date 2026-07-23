@@ -34,4 +34,17 @@ describe("app route helpers", () => {
     });
     expect(pathForPage("appointments")).toBe("/appointments");
   });
+
+  test("parses provider schedule appointment URLs", () => {
+    expect(routeFromPath("/schedule/appt-456")).toEqual({
+      page: "schedule",
+      data: { appointmentId: "appt-456" },
+    });
+  });
+
+  test("builds provider schedule appointment URLs from appointmentId", () => {
+    expect(pathForPage("schedule", { appointmentId: "appt-456" })).toBe(
+      "/schedule/appt-456",
+    );
+  });
 });

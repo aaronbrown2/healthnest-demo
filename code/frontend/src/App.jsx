@@ -194,6 +194,7 @@ export default function App() {
             user={session.user}
             onSignOut={handleSignOut}
             onNavigate={handleNavigate}
+            scheduleFocus={page === "schedule" ? pageData : null}
             initialView={
               page === "account-settings"
                 ? "account-settings"

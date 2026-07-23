@@ -685,9 +685,11 @@ async function notifications(db, sessionId, role) {
       });
     }
   } else {
-    const appointments = await db.prepare(`SELECT a.*, p.first_name, p.preferred_name, p.last_name
+    const appointments = await db.prepare(`SELECT a.*, p.first_name, p.preferred_name, p.last_name,
+        av.available_date, av.available_time
       FROM appointments a
       JOIN patients p ON p.id = a.patient_id
+      JOIN provider_availability av ON av.session_id = a.session_id AND av.id = a.availability_id
       WHERE a.session_id = ? AND a.provider_id = ? AND a.status != 'cancelled'
       ORDER BY a.created_at DESC
       LIMIT 10`).bind(sessionId, PROVIDER_ID).all();
@@ -699,6 +701,13 @@ async function notifications(db, sessionId, role) {
         body: "",
         created_at: appointment.created_at,
         nav: "schedule",
+        data: {
+          appointmentId: appointment.id,
+          appointment_id: appointment.id,
+          available_date: appointment.available_date,
+          available_time: appointment.available_time,
+        },
+        appointmentId: appointment.id,
       });
     }
   }

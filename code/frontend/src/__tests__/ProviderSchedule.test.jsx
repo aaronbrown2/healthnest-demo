@@ -91,6 +91,37 @@ describe("ProviderSchedule", () => {
     expect(screen.getByText("Mon")).toBeInTheDocument();
   });
 
+  test("initialFocus opens the matching appointment on its scheduled day", async () => {
+    schedulingApi.getAppointments.mockResolvedValue([
+      {
+        id: "appt-456",
+        patient_name: "Maya Rivera",
+        patient_user_id: "patient-user-maya",
+        status: "scheduled",
+        notes: "Follow up on blood pressure plan.",
+        available_date: "2099-01-15",
+        available_time: "09:30",
+      },
+    ]);
+
+    render(
+      <ProviderSchedule
+        initialFocus={{
+          appointmentId: "appt-456",
+          available_date: "2099-01-15",
+        }}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Maya Rivera").length).toBeGreaterThan(1);
+    });
+    expect(
+      screen.getByText("Follow up on blood pressure plan."),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("9:30 AM").length).toBeGreaterThan(1);
+  });
+
   test("blocking an open day-view slot calls setSlot", async () => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);

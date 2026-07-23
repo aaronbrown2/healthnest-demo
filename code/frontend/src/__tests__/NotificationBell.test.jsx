@@ -115,6 +115,42 @@ describe("NotificationBell", () => {
     window.removeEventListener("hn:navigate", onNavigate);
   });
 
+  test("provider appointment notifications focus the schedule appointment", async () => {
+    const onNavigate = jest.fn();
+    window.addEventListener("hn:navigate", onNavigate);
+    notificationsApi.getNotifications.mockResolvedValue([
+      notification({
+        id: "appt-appt-456",
+        type: "appointment",
+        title: "New appointment with Maya Rivera",
+        nav: "schedule",
+        data: {
+          appointmentId: "appt-456",
+          available_date: "2099-01-15",
+        },
+      }),
+    ]);
+
+    render(<NotificationBell />);
+
+    fireEvent.click(await screen.findByLabelText(/Notifications/));
+    fireEvent.click(screen.getByText("New appointment with Maya Rivera"));
+
+    expect(onNavigate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        detail: {
+          page: "schedule",
+          data: expect.objectContaining({
+            appointmentId: "appt-456",
+            available_date: "2099-01-15",
+          }),
+        },
+      }),
+    );
+
+    window.removeEventListener("hn:navigate", onNavigate);
+  });
+
   test("message dots follow message unread state", async () => {
     mockMessagesState = {
       unreadByContact: { "provider-user-chen": 2 },
