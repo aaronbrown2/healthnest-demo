@@ -65,9 +65,21 @@ function sameSet(a, b) {
   return a.size === b.size && [...a].every((id) => b.has(id));
 }
 
+function timestampMs(value) {
+  if (!value) return 0;
+  if (typeof value === "number") return value;
+  const text = String(value);
+  const sqliteUtc =
+    /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(text);
+  const normalized = sqliteUtc ? `${text.replace(" ", "T")}Z` : text;
+  const ms = new Date(normalized).getTime();
+  return Number.isFinite(ms) ? ms : 0;
+}
+
 function relativeTime(iso) {
   if (!iso) return "";
-  const then = new Date(iso).getTime();
+  const then = timestampMs(iso);
+  if (!then) return "";
   const diff = Date.now() - then;
   const mins = Math.round(diff / 60000);
   if (mins < 1) return "just now";
@@ -147,8 +159,9 @@ export default function NotificationBell() {
   }, [open]);
 
   const newCount = items.filter(
-    (n) => new Date(n.created_at).getTime() > seenAt,
+    (n) => timestampMs(n.created_at) > seenAt,
   ).length;
+  const visibleNewCount = open ? 0 : newCount;
 
   const isUnhandled = (n) => {
     if (!n.id || readIds.has(n.id)) return false;
@@ -171,7 +184,11 @@ export default function NotificationBell() {
       const next = !wasOpen;
       if (next) {
         // Mark everything seen the moment the panel opens.
-        const now = Date.now();
+        const newestItemAt = items.reduce(
+          (max, item) => Math.max(max, timestampMs(item.created_at)),
+          0,
+        );
+        const now = Math.max(Date.now(), newestItemAt);
         localStorage.setItem(seenStorageKey, String(now));
         setSeenAt(now);
       }
@@ -208,12 +225,12 @@ export default function NotificationBell() {
       <button
         type="button"
         className="topnav-icon-btn"
-        aria-label={newCount > 0 ? `Notifications (${newCount} new)` : "Notifications"}
+        aria-label={visibleNewCount > 0 ? `Notifications (${visibleNewCount} new)` : "Notifications"}
         aria-expanded={open}
         onClick={toggle}
       >
         <Bell size={20} />
-        {newCount > 0 && <span className="nb-badge">{newCount > 9 ? "9+" : newCount}</span>}
+        {visibleNewCount > 0 && <span className="nb-badge">{visibleNewCount > 9 ? "9+" : visibleNewCount}</span>}
       </button>
 
       {open && (

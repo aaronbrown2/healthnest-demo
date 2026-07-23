@@ -31,6 +31,7 @@ jest.mock("../messages/MessagesProvider", () => ({
 
 afterEach(() => {
   cleanup();
+  jest.restoreAllMocks();
   jest.clearAllMocks();
   localStorage.clear();
   mockMessagesState = {};
@@ -114,6 +115,30 @@ describe("NotificationBell", () => {
 
     await waitFor(() => {
       expect(screen.queryByLabelText("Unread notification")).not.toBeInTheDocument();
+    });
+  });
+
+  test("clears the badge for database UTC timestamps", async () => {
+    jest.spyOn(Date, "now").mockReturnValue(Date.UTC(2026, 6, 23, 23, 15, 1));
+    localStorage.setItem(
+      "healthnest.notificationsSeenAt.patient-user-test",
+      String(Date.UTC(2026, 6, 23, 23, 14, 59)),
+    );
+    notificationsApi.getNotifications.mockResolvedValue([
+      notification({
+        created_at: "2026-07-23 23:15:00",
+      }),
+    ]);
+
+    render(<NotificationBell />);
+
+    fireEvent.click(await screen.findByLabelText("Notifications (1 new)"));
+    expect(screen.getByLabelText("Notifications")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText("Notifications"));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Notifications")).toBeInTheDocument();
     });
   });
 });
