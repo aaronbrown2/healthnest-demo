@@ -667,6 +667,8 @@ async function notifications(db, sessionId, role) {
         body: "",
         created_at: appointment.created_at,
         nav: "appointments",
+        data: { appointmentId: appointment.id, appointment_id: appointment.id },
+        appointmentId: appointment.id,
       });
     }
     const labs = await db.prepare("SELECT * FROM lab_results WHERE session_id = ? AND patient_id = ? AND status = 'released' AND released_at IS NOT NULL ORDER BY released_at DESC LIMIT 10").bind(sessionId, PATIENT_ID).all();

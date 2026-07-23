@@ -76,6 +76,18 @@ function timestampMs(value) {
   return Number.isFinite(ms) ? ms : 0;
 }
 
+function appointmentIdFromNotification(notification) {
+  return (
+    notification?.data?.appointmentId ||
+    notification?.data?.appointment_id ||
+    notification?.appointmentId ||
+    (notification?.type === "appointment" &&
+    notification?.id?.startsWith("appt-")
+      ? notification.id.slice("appt-".length)
+      : null)
+  );
+}
+
 function relativeTime(iso) {
   if (!iso) return "";
   const then = timestampMs(iso);
@@ -204,17 +216,23 @@ export default function NotificationBell() {
       openThread?.(n.contact_id);
       openDrawer?.();
     } else if (n.nav) {
+      const appointmentId = appointmentIdFromNotification(n);
+      const page =
+        n.nav === "appointments" && appointmentId
+          ? "appointment-detail"
+          : n.nav;
       // Let App route this (it can set pageData, e.g. the labs view).
       navSeqRef.current += 1;
       const navData = {
         ...(n.data || {}),
+        ...(appointmentId ? { appointmentId } : {}),
         ...(n.data?.lab_result_id ? { labResultId: n.data.lab_result_id } : {}),
         ...(n.labResultId ? { labResultId: n.labResultId } : {}),
         _nav: navSeqRef.current,
       };
       window.dispatchEvent(
         new CustomEvent("hn:navigate", {
-          detail: { page: n.nav, data: navData },
+          detail: { page, data: navData },
         }),
       );
     }

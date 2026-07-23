@@ -85,6 +85,36 @@ describe("NotificationBell", () => {
     });
   });
 
+  test("appointment notifications open the appointment detail page", async () => {
+    const onNavigate = jest.fn();
+    window.addEventListener("hn:navigate", onNavigate);
+    notificationsApi.getNotifications.mockResolvedValue([
+      notification({
+        id: "appt-appt-123",
+        type: "appointment",
+        title: "Appointment booked with Dr. Elena Chen",
+        nav: "appointments",
+        data: { appointmentId: "appt-123" },
+      }),
+    ]);
+
+    render(<NotificationBell />);
+
+    fireEvent.click(await screen.findByLabelText(/Notifications/));
+    fireEvent.click(screen.getByText("Appointment booked with Dr. Elena Chen"));
+
+    expect(onNavigate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        detail: {
+          page: "appointment-detail",
+          data: expect.objectContaining({ appointmentId: "appt-123" }),
+        },
+      }),
+    );
+
+    window.removeEventListener("hn:navigate", onNavigate);
+  });
+
   test("message dots follow message unread state", async () => {
     mockMessagesState = {
       unreadByContact: { "provider-user-chen": 2 },
