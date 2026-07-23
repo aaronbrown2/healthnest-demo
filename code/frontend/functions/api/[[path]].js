@@ -59,8 +59,10 @@ export async function onRequest(context) {
     if (request.method === "POST" && ["/ai/conversations", "/ai/provider/conversations"].includes(path)) return json(aiConversations()[0], 201);
 
     const parts = path.split("/").filter(Boolean);
+    if (request.method === "PATCH" && route(parts, "appointments", ":id", "edit_notes")) return editAppointmentNotes(db, sessionId, parts[1], request);
     if (request.method === "POST" && route(parts, "appointments", ":id", "cancel")) return cancelAppointment(db, sessionId, parts[1]);
     if (request.method === "POST" && route(parts, "appointments", ":id", "reschedule")) return rescheduleAppointment(db, sessionId, parts[1], request);
+    if (request.method === "DELETE" && route(parts, "schedule", "availability", ":id")) return deleteAvailability(db, sessionId, parts[2]);
     if (request.method === "DELETE" && route(parts, "schedule", "rules", ":id")) return deleteRule(db, sessionId, parts[2]);
     if (request.method === "POST" && route(parts, "schedule", "appointments", ":id", "cancel")) return cancelAppointment(db, sessionId, parts[2]);
     if (request.method === "GET" && route(parts, "patients", ":id")) return json(await patientById(db, parts[1]));
@@ -242,6 +244,14 @@ async function createPatientAppointment(db, sessionId, request) {
   return json((await appointmentQuery(db, sessionId, "a.id = ?", [id]))[0], 201);
 }
 
+async function editAppointmentNotes(db, sessionId, id, request) {
+  const data = await body(request);
+  await db.prepare("UPDATE appointments SET notes = ? WHERE session_id = ? AND id = ?").bind(data.notes || "", sessionId, id).run();
+  const updated = await appointmentQuery(db, sessionId, "a.id = ?", [id]);
+  if (!updated.length) return json({ detail: "Appointment not found." }, 404);
+  return json(updated[0]);
+}
+
 async function cancelAppointment(db, sessionId, id) {
   const appointment = await db.prepare("SELECT availability_id FROM appointments WHERE session_id = ? AND id = ?").bind(sessionId, id).first();
   if (appointment) await db.batch([
@@ -253,8 +263,17 @@ async function cancelAppointment(db, sessionId, id) {
 
 async function rescheduleAppointment(db, sessionId, id, request) {
   const data = await body(request);
-  await cancelAppointment(db, sessionId, id);
-  return createPatientAppointment(db, sessionId, new Request("https://demo.local", { method: "POST", body: JSON.stringify(data) }));
+  const appointment = await db.prepare("SELECT * FROM appointments WHERE session_id = ? AND id = ?").bind(sessionId, id).first();
+  const slot = await db.prepare("SELECT * FROM provider_availability WHERE session_id = ? AND id = ?").bind(sessionId, data.availability_id).first();
+  if (!appointment || !slot || slot.is_booked || slot.blocked) {
+    return json({ detail: "Slot is no longer available." }, 409);
+  }
+  await db.batch([
+    db.prepare("UPDATE provider_availability SET is_booked = 0 WHERE session_id = ? AND id = ?").bind(sessionId, appointment.availability_id),
+    db.prepare("UPDATE provider_availability SET is_booked = 1 WHERE session_id = ? AND id = ?").bind(sessionId, slot.id),
+    db.prepare("UPDATE appointments SET availability_id = ?, provider_id = ?, status = 'scheduled' WHERE session_id = ? AND id = ?").bind(slot.id, slot.provider_id, sessionId, id),
+  ]);
+  return json((await appointmentQuery(db, sessionId, "a.id = ?", [id]))[0]);
 }
 
 async function scheduleAvailability(db, sessionId) {
@@ -285,6 +304,11 @@ async function setSlot(db, sessionId, request) {
   const id = data.id || `slot-${PROVIDER_ID}-${availableDate}-${String(availableTime || "").replace(":", "")}`;
   await db.prepare("INSERT OR REPLACE INTO provider_availability (session_id, id, provider_id, available_date, available_time, is_booked, blocked) VALUES (?, ?, ?, ?, ?, 0, ?)").bind(sessionId, id, PROVIDER_ID, availableDate, availableTime, blocked ? 1 : 0).run();
   return json({ id, provider_id: PROVIDER_ID, available_date: availableDate, available_time: availableTime, is_booked: false, blocked: Boolean(blocked) });
+}
+
+async function deleteAvailability(db, sessionId, id) {
+  await db.prepare("DELETE FROM provider_availability WHERE session_id = ? AND id = ? AND is_booked = 0").bind(sessionId, id).run();
+  return empty();
 }
 
 async function scheduleRules(db, sessionId) {
