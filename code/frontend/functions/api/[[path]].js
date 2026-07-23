@@ -200,24 +200,40 @@ function appointmentOut(row) {
   return {
     id: row.id,
     patient_id: row.patient_id,
+    patient_user_id: row.patient_user_id,
+    patient_name: row.patient_name,
     provider_id: row.provider_id,
     availability_id: row.availability_id,
     status: row.status,
     notes: row.notes,
+    available_date: row.available_date,
+    available_time: row.available_time,
     providers: { id: row.provider_id, user_id: row.provider_user_id, title: row.title, first_name: row.provider_first_name, last_name: row.provider_last_name, specialty: row.specialty },
     provider_availability: { id: row.availability_id, available_date: row.available_date, available_time: row.available_time },
   };
 }
 
 async function appointmentQuery(db, sessionId, where, params = []) {
-  const rows = await db.prepare(`SELECT a.*, av.available_date, av.available_time, pr.user_id AS provider_user_id, pr.title, pr.first_name AS provider_first_name, pr.last_name AS provider_last_name, pr.specialty FROM appointments a JOIN provider_availability av ON av.session_id = a.session_id AND av.id = a.availability_id JOIN providers pr ON pr.id = a.provider_id WHERE a.session_id = ? AND ${where} ORDER BY av.available_date, av.available_time`).bind(sessionId, ...params).all();
+  const rows = await db.prepare(`SELECT a.*, av.available_date, av.available_time,
+      pr.user_id AS provider_user_id, pr.title, pr.first_name AS provider_first_name,
+      pr.last_name AS provider_last_name, pr.specialty,
+      p.user_id AS patient_user_id,
+      (COALESCE(p.preferred_name, p.first_name) || ' ' || p.last_name) AS patient_name
+    FROM appointments a
+    JOIN provider_availability av ON av.session_id = a.session_id AND av.id = a.availability_id
+    JOIN providers pr ON pr.id = a.provider_id
+    JOIN patients p ON p.id = a.patient_id
+    WHERE a.session_id = ? AND ${where}
+    ORDER BY av.available_date, av.available_time`).bind(sessionId, ...params).all();
   return rows.results.map(appointmentOut);
 }
 
 async function createPatientAppointment(db, sessionId, request) {
   const data = await body(request);
   const slot = await db.prepare("SELECT * FROM provider_availability WHERE session_id = ? AND id = ?").bind(sessionId, data.availability_id).first();
-  if (!slot || slot.is_booked || slot.blocked) return json({ detail: "Slot is unavailable." }, 400);
+  if (!slot || slot.provider_id !== data.provider_id || slot.is_booked || slot.blocked) {
+    return json({ detail: "Slot is no longer available." }, 409);
+  }
   const id = `appt-${crypto.randomUUID().slice(0, 8)}`;
   await db.batch([
     db.prepare("INSERT INTO appointments (session_id, id, patient_id, provider_id, availability_id, status, notes) VALUES (?, ?, ?, ?, ?, 'scheduled', ?)").bind(sessionId, id, PATIENT_ID, slot.provider_id, slot.id, data.notes || ""),
@@ -303,10 +319,13 @@ async function schedulePatients(db) {
 
 async function providerCreateAppointment(db, sessionId, request) {
   const data = await body(request);
-  const slotId = `slot-${crypto.randomUUID().slice(0, 8)}`;
+  const availableDate = data.available_date || data.date;
+  const availableTime = data.available_time || data.time;
+  const slotId = `slot-${PROVIDER_ID}-${availableDate}-${String(availableTime || "").replace(":", "")}`;
   const apptId = `appt-${crypto.randomUUID().slice(0, 8)}`;
   await db.batch([
-    db.prepare("INSERT OR IGNORE INTO provider_availability (session_id, id, provider_id, available_date, available_time, is_booked, blocked) VALUES (?, ?, ?, ?, ?, 1, 0)").bind(sessionId, slotId, PROVIDER_ID, data.available_date, data.available_time),
+    db.prepare("INSERT OR IGNORE INTO provider_availability (session_id, id, provider_id, available_date, available_time, is_booked, blocked) VALUES (?, ?, ?, ?, ?, 1, 0)").bind(sessionId, slotId, PROVIDER_ID, availableDate, availableTime),
+    db.prepare("UPDATE provider_availability SET is_booked = 1, blocked = 0 WHERE session_id = ? AND id = ?").bind(sessionId, slotId),
     db.prepare("INSERT INTO appointments (session_id, id, patient_id, provider_id, availability_id, status, notes) VALUES (?, ?, ?, ?, ?, 'scheduled', ?)").bind(sessionId, apptId, data.patient_id || PATIENT_ID, PROVIDER_ID, slotId, data.notes || ""),
   ]);
   return json((await appointmentQuery(db, sessionId, "a.id = ?", [apptId]))[0], 201);
