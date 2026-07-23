@@ -7,7 +7,7 @@ session state.
 
 - React builds to `code/frontend/dist`.
 - Cloudflare Pages serves the static app.
-- Pages Functions under `functions/api` provide the demo API.
+- Pages Functions under `code/frontend/functions/api` provide the demo API.
 - D1 stores fictional demo data.
 - Each browser gets a random `X-Demo-Session-Id`; mutable data is copied from
   the `template` seed rows into that session on first use.
@@ -21,7 +21,7 @@ Create a D1 database:
 npx wrangler d1 create healthnest-demo
 ```
 
-Copy the returned `database_id` into `wrangler.toml`.
+Copy the returned `database_id` into `code/frontend/wrangler.toml`.
 
 Apply migrations locally while developing:
 
@@ -38,8 +38,9 @@ npx wrangler d1 migrations apply healthnest-demo --remote
 Configure Cloudflare Pages:
 
 ```text
-Build command: cd code/frontend && npm ci && npm run build
-Build output directory: code/frontend/dist
+Root directory: code/frontend
+Build command: npm ci && npm run build
+Build output directory: dist
 Environment variable: VITE_HEALTHNEST_DEMO=true
 D1 binding: DB -> healthnest-demo
 ```
@@ -49,6 +50,5 @@ For local Cloudflare testing:
 ```bash
 cd code/frontend
 VITE_HEALTHNEST_DEMO=true npm run build
-cd ../..
-npx wrangler pages dev code/frontend/dist
+npx wrangler pages dev dist
 ```

@@ -18,7 +18,7 @@ const mutableTables = [
 export async function onRequest(context) {
   try {
     const request = context.request;
-    const path = "/" + (context.params.path || []).join("/");
+    const path = normalizePath(context.params.path);
     const url = new URL(request.url);
     const db = context.env.DB;
     const sessionId = demoSessionId(request);
@@ -32,11 +32,11 @@ export async function onRequest(context) {
     if (request.method === "POST" && path === "/auth/refresh") return refreshAuth(request);
     if (request.method === "GET" && path === "/auth/me") return json(authResponse(currentRole(request)).user);
     if (request.method === "POST" && path === "/auth/signout") return empty();
-    if (request.method === "GET" && path === "/providers/") return json(await listProviders(db));
+    if (request.method === "GET" && path === "/providers") return json(await listProviders(db));
     if (request.method === "GET" && path === "/providers/care-team") return json(await careTeam(db));
     if (request.method === "GET" && path === "/appointments/availability") return json(await patientAvailability(db, sessionId));
-    if (request.method === "GET" && path === "/appointments/") return json(await appointmentQuery(db, sessionId, "a.patient_id = ?", [PATIENT_ID]));
-    if (request.method === "POST" && path === "/appointments/") return createPatientAppointment(db, sessionId, request);
+    if (request.method === "GET" && path === "/appointments") return json(await appointmentQuery(db, sessionId, "a.patient_id = ?", [PATIENT_ID]));
+    if (request.method === "POST" && path === "/appointments") return createPatientAppointment(db, sessionId, request);
     if (request.method === "GET" && path === "/schedule/availability") return json(await scheduleAvailability(db, sessionId));
     if (request.method === "POST" && path === "/schedule/availability") return addAvailability(db, sessionId, request);
     if (request.method === "POST" && path === "/schedule/slot") return setSlot(db, sessionId, request);
@@ -49,12 +49,12 @@ export async function onRequest(context) {
     if (request.method === "GET" && path === "/messages/contacts") return json(await contacts(db, sessionId, currentRole(request)));
     if (request.method === "GET" && path === "/messages/unread") return json(await unread(db, sessionId, currentRole(request)));
     if (request.method === "GET" && path === "/messages/inbox") return json([]);
-    if (request.method === "POST" && path === "/messages/") return sendMessage(db, sessionId, request);
+    if (request.method === "POST" && path === "/messages") return sendMessage(db, sessionId, request);
     if (request.method === "GET" && path === "/lab-results") return json(await listLabs(db, sessionId, url.searchParams));
     if (request.method === "GET" && path === "/providers/visit-overviews") return json(await visitOverviews(db, sessionId));
     if (request.method === "GET" && path === "/providers/unsigned-encounters") return json(await unsignedEncounters(db, sessionId));
     if (request.method === "POST" && path === "/providers/encounter-notes") return encounterNote(db, sessionId, request);
-    if (request.method === "GET" && path === "/notifications/") return json(notifications());
+    if (request.method === "GET" && path === "/notifications") return json(notifications());
     if (request.method === "GET" && ["/ai/conversations", "/ai/provider/conversations"].includes(path)) return json(aiConversations());
     if (request.method === "POST" && ["/ai/conversations", "/ai/provider/conversations"].includes(path)) return json(aiConversations()[0], 201);
 
@@ -89,6 +89,16 @@ function json(data, status = 200) {
 
 function empty(status = 204) {
   return new Response(null, { status, headers: { "Cache-Control": "no-store" } });
+}
+
+function normalizePath(value) {
+  const segments = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split("/")
+      : [];
+  const path = `/${segments.filter(Boolean).join("/")}`;
+  return path !== "/" && path.endsWith("/") ? path.slice(0, -1) : path;
 }
 
 function route(parts, ...shape) {
