@@ -1,5 +1,6 @@
 import { authApi } from "./authApi";
 import { API_BASE } from "./apiBase";
+import { demoSessionHeaders } from "../demo/demoSession";
 
 /**
  * AI-USAGE SUMMARY
@@ -11,7 +12,7 @@ import { API_BASE } from "./apiBase";
 const API_URL = API_BASE;
 async function request(path, retry = true) {
   const t = await authApi.getValidAccessToken();
-  const headers = {};
+  const headers = { ...demoSessionHeaders() };
   if (t) headers.Authorization = `Bearer ${t}`;
   const res = await fetch(`${API_URL}${path}`, { headers });
 

@@ -1,5 +1,6 @@
 import { authApi } from "./authApi";
 import { API_BASE } from "./apiBase";
+import { demoSessionHeaders } from "../demo/demoSession";
 
 /**
  * AI-USAGE SUMMARY
@@ -11,7 +12,7 @@ import { API_BASE } from "./apiBase";
 const API_URL = API_BASE;
 async function jsonRequest(path, { method = "GET", body } = {}, retry = true) {
   const t = await authApi.getValidAccessToken();
-  const headers = { "Content-Type": "application/json" };
+  const headers = { "Content-Type": "application/json", ...demoSessionHeaders() };
   if (t) headers.Authorization = `Bearer ${t}`;
 
   const res = await fetch(`${API_URL}${path}`, {
@@ -47,6 +48,7 @@ async function streamMessage(
   const headers = {
     "Content-Type": "application/json",
     Accept: "text/event-stream",
+    ...demoSessionHeaders(),
   };
   if (t) headers.Authorization = `Bearer ${t}`;
 

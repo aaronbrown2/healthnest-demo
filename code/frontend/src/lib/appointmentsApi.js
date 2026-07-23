@@ -11,12 +11,13 @@
  */
 import { authApi } from "./authApi";
 import { API_BASE } from "./apiBase";
+import { demoSessionHeaders } from "../demo/demoSession";
 
 const API_URL = API_BASE;
 
 async function request(path, { method = "GET", body } = {}, retry = true) {
   const token = await authApi.getValidAccessToken();
-  const headers = { "Content-Type": "application/json" };
+  const headers = { "Content-Type": "application/json", ...demoSessionHeaders() };
   if (token) headers.Authorization = `Bearer ${token}`;
 
   const res = await fetch(`${API_URL}${path}`, {

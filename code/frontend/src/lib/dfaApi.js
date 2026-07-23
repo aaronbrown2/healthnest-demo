@@ -8,6 +8,7 @@
  * confirmed SSE parsing and callback shape are unchanged from the PFA implementation.
  */
 import { API_BASE } from "./apiBase";
+import { demoSessionHeaders } from "../demo/demoSession";
 
 const API_URL = API_BASE;
 const SESSION_STORAGE_KEY = "healthnest.session";
@@ -22,7 +23,7 @@ function token() {
 }
 
 async function jsonRequest(path, { method = "GET", body } = {}) {
-  const headers = { "Content-Type": "application/json" };
+  const headers = { "Content-Type": "application/json", ...demoSessionHeaders() };
   const t = token();
   if (t) headers.Authorization = `Bearer ${t}`;
 
@@ -53,6 +54,7 @@ async function streamMessage(
   const headers = {
     "Content-Type": "application/json",
     Accept: "text/event-stream",
+    ...demoSessionHeaders(),
   };
   if (t) headers.Authorization = `Bearer ${t}`;
 

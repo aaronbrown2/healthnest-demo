@@ -10,6 +10,7 @@
  */
 import { authApi } from "./authApi";
 import { API_BASE } from "./apiBase";
+import { demoSessionHeaders } from "../demo/demoSession";
 
 const BASE = API_BASE;
 
@@ -19,6 +20,7 @@ async function request(path, options = {}, retry = true) {
     ...options,
     headers: {
       "Content-Type": "application/json",
+      ...demoSessionHeaders(),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },

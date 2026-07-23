@@ -21,6 +21,7 @@ import {
 import LabResultsPage from "../labresults/LabResultsPage";
 import LabResultReview from "../labresults/LabResultReview";
 import { authApi } from "../lib/authApi";
+import { demoSessionHeaders } from "../demo/demoSession";
 import {
   patientsApi,
   formatPatientName,
@@ -765,6 +766,7 @@ export default function DoctorDashboard({
     }
 
     return {
+      ...demoSessionHeaders(),
       Authorization: `Bearer ${session.access_token}`,
     };
   };
