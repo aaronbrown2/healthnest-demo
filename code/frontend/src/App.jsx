@@ -31,6 +31,7 @@ import { usePulse } from "./pulse/PulseProvider";
 import { useMessages } from "./messages/MessagesProvider";
 import DrawerScrim from "./components/DrawerScrim";
 import { DEMO_MODE, DEMO_ROLE_KEY, makeDemoSession } from "./demo/demoMode";
+import { pathForPage, routeFromPath } from "./lib/appRoutes";
 
 // Light-dismiss overlay shared by the two global side drawers. Rendered inside
 // the relevant providers so it can read both drawers' open state and close them.
@@ -62,34 +63,6 @@ function ProviderDrawerScrim() {
   );
 }
 
-const PATH_TO_PAGE = {
-  "/appointments": "appointments",
-  "/booking": "booking",
-  "/care-team": "care-team",
-  "/pulse": "pulse",
-  "/messages": "messages",
-  "/account-settings": "account-settings",
-  // provider routes
-  "/schedule": "schedule",
-  "/patient-records": "patient-records",
-};
-
-const PAGE_TO_PATH = {
-  dashboard: "/",
-  appointments: "/appointments",
-  // Detail state lives in pageData; back/refresh land on the list.
-  "appointment-detail": "/appointments",
-  booking: "/booking",
-  "care-team": "/care-team",
-  pulse: "/pulse",
-  messages: "/messages",
-  "account-settings": "/account-settings",
-  "dfa-pulse": "/pulse",
-  // provider routes
-  schedule: "/schedule",
-  "patient-records": "/patient-records",
-};
-
 // Provider top-level pages → the DoctorDashboard internal view they open.
 const PROVIDER_PAGE_TO_VIEW = {
   dashboard: "home",
@@ -98,16 +71,12 @@ const PROVIDER_PAGE_TO_VIEW = {
   messages: "messages",
 };
 
-function getPageFromPath() {
-  return PATH_TO_PAGE[window.location.pathname] ?? "dashboard";
-}
-
 const ACTIVE_ROLE_KEY = "healthnest.activeRole";
 
 export default function App() {
   const [view, setView] = useState("login");
-  const [page, setPage] = useState(getPageFromPath);
-  const [pageData, setPageData] = useState(null);
+  const [page, setPage] = useState(() => routeFromPath().page);
+  const [pageData, setPageData] = useState(() => routeFromPath().data);
   const [session, setSession] = useState(() => authApi.getSession());
   const [signupRole, setSignupRole] = useState("patient");
   const [activeRole, setActiveRole] = useState(() =>
@@ -141,7 +110,11 @@ export default function App() {
 
   // Keep page state in sync when the user hits browser back/forward
   useEffect(() => {
-    const onPop = () => setPage(getPageFromPath());
+    const onPop = () => {
+      const route = routeFromPath();
+      setPage(route.page);
+      setPageData(route.data);
+    };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
@@ -173,7 +146,7 @@ export default function App() {
     }
     setPage(newPage);
     setPageData(data);
-    window.history.pushState(null, "", PAGE_TO_PATH[newPage] ?? "/");
+    window.history.pushState(null, "", pathForPage(newPage, data));
   };
 
   // Global navigation event (used by the notification bell, which lives in the
