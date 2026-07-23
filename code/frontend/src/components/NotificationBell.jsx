@@ -11,10 +11,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Bell, MessageSquare, Calendar, Activity } from "lucide-react";
 import { notificationsApi } from "../lib/notificationsApi";
+import { authApi } from "../lib/authApi";
 import { useMessages } from "../messages/MessagesProvider";
 import "./NotificationBell.css";
 
 const SEEN_KEY = "healthnest.notificationsSeenAt";
+const READ_IDS_KEY = "healthnest.notificationReadIds";
+const MAX_STORED_READ_IDS = 100;
 const POLL_MS = 30000;
 
 const ICONS = {
@@ -23,9 +26,43 @@ const ICONS = {
   lab: Activity,
 };
 
-function readSeenAt() {
-  const v = Number(localStorage.getItem(SEEN_KEY));
+function readSeenAt(key) {
+  const v = Number(localStorage.getItem(key) ?? localStorage.getItem(SEEN_KEY));
   return Number.isFinite(v) ? v : 0;
+}
+
+function readStoredIds(key) {
+  try {
+    const raw = localStorage.getItem(key) ?? localStorage.getItem(READ_IDS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(parsed) ? parsed.filter(Boolean) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function writeStoredIds(key, ids) {
+  try {
+    localStorage.setItem(
+      key,
+      JSON.stringify([...ids].slice(-MAX_STORED_READ_IDS)),
+    );
+  } catch {
+    /* localStorage is best-effort UI state for notification dots. */
+  }
+}
+
+function pruneStoredIds(ids, notifications) {
+  const currentIds = new Set(notifications.map((n) => n.id).filter(Boolean));
+  return new Set(
+    [...ids]
+      .filter((id) => currentIds.has(id))
+      .slice(-MAX_STORED_READ_IDS),
+  );
+}
+
+function sameSet(a, b) {
+  return a.size === b.size && [...a].every((id) => b.has(id));
 }
 
 function relativeTime(iso) {
@@ -46,21 +83,38 @@ function relativeTime(iso) {
 }
 
 export default function NotificationBell() {
+  const userId = authApi.getSession?.()?.user?.id || "anonymous";
+  const seenStorageKey = `${SEEN_KEY}.${userId}`;
+  const readStorageKey = `${READ_IDS_KEY}.${userId}`;
   const [items, setItems] = useState([]);
   const [open, setOpen] = useState(false);
-  const [seenAt, setSeenAt] = useState(readSeenAt);
+  const [seenAt, setSeenAt] = useState(() => readSeenAt(seenStorageKey));
+  const [readIds, setReadIds] = useState(() => readStoredIds(readStorageKey));
   const wrapRef = useRef(null);
   // Monotonic nonce so repeat clicks on the same nav target still re-trigger the
   // destination view (e.g. opening labs twice while already on the dashboard).
   const navSeqRef = useRef(0);
-  const { openThread, openDrawer } = useMessages();
+  const { openThread, openDrawer, unreadByContact } = useMessages();
 
   const load = useCallback(() => {
     notificationsApi
       .getNotifications()
-      .then((data) => setItems(Array.isArray(data) ? data : []))
+      .then((data) => {
+        const nextItems = Array.isArray(data) ? data : [];
+        setItems(nextItems);
+        setReadIds((current) => {
+          const pruned = pruneStoredIds(current, nextItems);
+          if (!sameSet(current, pruned)) writeStoredIds(readStorageKey, pruned);
+          return sameSet(current, pruned) ? current : pruned;
+        });
+      })
       .catch(() => {});
-  }, []);
+  }, [readStorageKey]);
+
+  useEffect(() => {
+    setSeenAt(readSeenAt(seenStorageKey));
+    setReadIds(readStoredIds(readStorageKey));
+  }, [seenStorageKey, readStorageKey]);
 
   useEffect(() => {
     load();
@@ -92,9 +146,25 @@ export default function NotificationBell() {
     };
   }, [open]);
 
-  const unread = items.filter(
+  const newCount = items.filter(
     (n) => new Date(n.created_at).getTime() > seenAt,
   ).length;
+
+  const isUnhandled = (n) => {
+    if (!n.id || readIds.has(n.id)) return false;
+    if (n.contact_id) return (unreadByContact?.[n.contact_id] || 0) > 0;
+    return true;
+  };
+
+  const markHandled = useCallback((n) => {
+    if (!n?.id) return;
+    setReadIds((current) => {
+      if (current.has(n.id)) return current;
+      const next = new Set([...current, n.id].slice(-MAX_STORED_READ_IDS));
+      writeStoredIds(readStorageKey, next);
+      return next;
+    });
+  }, [readStorageKey]);
 
   const toggle = () => {
     setOpen((wasOpen) => {
@@ -102,7 +172,7 @@ export default function NotificationBell() {
       if (next) {
         // Mark everything seen the moment the panel opens.
         const now = Date.now();
-        localStorage.setItem(SEEN_KEY, String(now));
+        localStorage.setItem(seenStorageKey, String(now));
         setSeenAt(now);
       }
       return next;
@@ -110,6 +180,7 @@ export default function NotificationBell() {
   };
 
   const onItem = (n) => {
+    markHandled(n);
     setOpen(false);
     if (n.contact_id) {
       // Open that conversation in the global messaging drawer.
@@ -137,12 +208,12 @@ export default function NotificationBell() {
       <button
         type="button"
         className="topnav-icon-btn"
-        aria-label={unread > 0 ? `Notifications (${unread} new)` : "Notifications"}
+        aria-label={newCount > 0 ? `Notifications (${newCount} new)` : "Notifications"}
         aria-expanded={open}
         onClick={toggle}
       >
         <Bell size={20} />
-        {unread > 0 && <span className="nb-badge">{unread > 9 ? "9+" : unread}</span>}
+        {newCount > 0 && <span className="nb-badge">{newCount > 9 ? "9+" : newCount}</span>}
       </button>
 
       {open && (
@@ -154,11 +225,12 @@ export default function NotificationBell() {
             <ul className="nb-list">
               {items.map((n) => {
                 const Icon = ICONS[n.type] || Bell;
+                const unhandled = isUnhandled(n);
                 return (
                   <li key={n.id}>
                     <button
                       type="button"
-                      className="nb-item"
+                      className={`nb-item${unhandled ? " unread" : ""}`}
                       onClick={() => onItem(n)}
                     >
                       <span className={`nb-item-icon nb-item-icon--${n.type}`}>
@@ -171,6 +243,12 @@ export default function NotificationBell() {
                           {relativeTime(n.created_at)}
                         </span>
                       </span>
+                      {unhandled && (
+                        <span
+                          className="nb-item-dot"
+                          aria-label="Unread notification"
+                        />
+                      )}
                     </button>
                   </li>
                 );
