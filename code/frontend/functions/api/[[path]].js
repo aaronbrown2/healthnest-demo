@@ -248,7 +248,7 @@ async function scheduleAvailability(db, sessionId) {
 
 async function addAvailability(db, sessionId, request) {
   const data = await body(request);
-  const dates = expandDates(data.available_date, data.end_date, data.weekdays || []);
+  const dates = expandDates(data.start_date || data.available_date || data.date, data.end_date, data.weekdays || []);
   const times = data.start_time && data.end_time ? expandTimes(data.start_time, data.end_time) : [data.available_time || data.start_time];
   const created = [];
   for (const date of dates) {
@@ -263,9 +263,12 @@ async function addAvailability(db, sessionId, request) {
 
 async function setSlot(db, sessionId, request) {
   const data = await body(request);
-  const id = data.id || `slot-${crypto.randomUUID().slice(0, 8)}`;
-  await db.prepare("INSERT OR REPLACE INTO provider_availability (session_id, id, provider_id, available_date, available_time, is_booked, blocked) VALUES (?, ?, ?, ?, ?, 0, ?)").bind(sessionId, id, PROVIDER_ID, data.available_date, data.available_time, data.blocked ? 1 : 0).run();
-  return json({ id, provider_id: PROVIDER_ID, available_date: data.available_date, available_time: data.available_time, is_booked: false, blocked: Boolean(data.blocked) });
+  const availableDate = data.available_date || data.date;
+  const availableTime = data.available_time || data.time;
+  const blocked = data.blocked ?? data.state === "blocked";
+  const id = data.id || `slot-${PROVIDER_ID}-${availableDate}-${String(availableTime || "").replace(":", "")}`;
+  await db.prepare("INSERT OR REPLACE INTO provider_availability (session_id, id, provider_id, available_date, available_time, is_booked, blocked) VALUES (?, ?, ?, ?, ?, 0, ?)").bind(sessionId, id, PROVIDER_ID, availableDate, availableTime, blocked ? 1 : 0).run();
+  return json({ id, provider_id: PROVIDER_ID, available_date: availableDate, available_time: availableTime, is_booked: false, blocked: Boolean(blocked) });
 }
 
 async function scheduleRules(db, sessionId) {
@@ -275,10 +278,17 @@ async function scheduleRules(db, sessionId) {
 
 async function addRule(db, sessionId, request) {
   const data = await body(request);
-  const id = `rule-${crypto.randomUUID().slice(0, 8)}`;
-  await db.prepare("INSERT INTO availability_rules (session_id, id, provider_id, weekday, start_time, end_time, effective_from, effective_until, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)").bind(sessionId, id, PROVIDER_ID, data.weekday, data.start_time, data.end_time, data.effective_from, data.effective_until || null).run();
-  await addAvailability(db, sessionId, new Request("https://demo.local", { method: "POST", body: JSON.stringify({ available_date: data.effective_from, end_date: data.effective_until, weekdays: [data.weekday], start_time: data.start_time, end_time: data.end_time }) }));
-  return json({ id, provider_id: PROVIDER_ID, ...data, active: 1 }, 201);
+  const weekdays = data.weekdays?.length ? data.weekdays : [data.weekday];
+  const effectiveFrom = data.effective_from || new Date().toISOString().slice(0, 10);
+  const effectiveUntil = data.effective_until || addDays(effectiveFrom, 45);
+  const rules = [];
+  for (const weekday of weekdays) {
+    const id = `rule-${crypto.randomUUID().slice(0, 8)}`;
+    await db.prepare("INSERT INTO availability_rules (session_id, id, provider_id, weekday, start_time, end_time, effective_from, effective_until, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)").bind(sessionId, id, PROVIDER_ID, weekday, data.start_time, data.end_time, effectiveFrom, data.effective_until || null).run();
+    await addAvailability(db, sessionId, new Request("https://demo.local", { method: "POST", body: JSON.stringify({ start_date: effectiveFrom, end_date: effectiveUntil, weekdays: [weekday], start_time: data.start_time, end_time: data.end_time }) }));
+    rules.push({ id, provider_id: PROVIDER_ID, weekday, start_time: data.start_time, end_time: data.end_time, effective_from: effectiveFrom, effective_until: data.effective_until || null, active: 1 });
+  }
+  return json(rules.length === 1 ? rules[0] : rules, 201);
 }
 
 async function deleteRule(db, sessionId, id) {
@@ -433,6 +443,7 @@ function aiMessage() {
 }
 
 function expandDates(start, end, weekdays) {
+  if (!start) return [];
   if (!weekdays?.length) return [start];
   const dates = [];
   const wanted = new Set(weekdays.map(Number));
@@ -444,6 +455,12 @@ function expandDates(start, end, weekdays) {
     cursor.setDate(cursor.getDate() + 1);
   }
   return dates;
+}
+
+function addDays(isoDate, days) {
+  const date = new Date(`${isoDate}T12:00:00`);
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
 }
 
 function expandTimes(start, end) {

@@ -1,0 +1,9 @@
+name = "healthnest-demo"
+pages_build_output_dir = "code/frontend/dist"
+compatibility_date = "2026-07-23"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "healthnest-demo"
+database_id = "885e7f12-5be8-4c4e-a54f-35afdf51cb38"
+migrations_dir = "migrations"
