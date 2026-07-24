@@ -108,6 +108,28 @@ describe("LabResultReview", () => {
     });
   });
 
+  test("renders demo lab details when source metadata is missing", async () => {
+    labResultsApi.get.mockResolvedValue({
+      ...mockResult,
+      source_format: undefined,
+      parser_version: undefined,
+    });
+
+    render(
+      <LabResultReview
+        labResultId='lr-1'
+        onBack={jest.fn()}
+        onChanged={jest.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Lab result review")).toBeInTheDocument();
+    });
+    expect(screen.getAllByText("DEMO").length).toBeGreaterThan(0);
+    expect(screen.getByText("vdemo")).toBeInTheDocument();
+  });
+
   // Lab metadata form test
   test("shows the lab name in the review form", async () => {
     labResultsApi.get.mockResolvedValue(mockResult);

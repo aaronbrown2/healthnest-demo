@@ -64,6 +64,10 @@ function shortPatient(id) {
   return `Patient #${id.slice(0, 8)}`;
 }
 
+function sourceFormatLabel(value) {
+  return String(value || "demo").toUpperCase();
+}
+
 export default function LabResultReview({ labResultId, onBack, onChanged }) {
   const [original, setOriginal] = useState(null);
   const [patient, setPatient] = useState(null);
@@ -144,6 +148,8 @@ export default function LabResultReview({ labResultId, onBack, onChanged }) {
 
   const status = original?.status;
   const isMutable = status === "uploaded" || status === "reviewed";
+  const sourceLabel = sourceFormatLabel(original?.source_format);
+  const parserVersion = original?.parser_version || "demo";
 
   const manualEntryRemaining = useMemo(
     () => entries.filter((e) => e.needs_manual_entry && !e.value).length,
@@ -344,7 +350,7 @@ export default function LabResultReview({ labResultId, onBack, onChanged }) {
             </span>
             {patientSubtitle ? `${patientSubtitle} · ` : ""}
             {meta.lab_name || "Lab result"} ·{" "}
-            {original.source_format.toUpperCase()} · Uploaded{" "}
+            {sourceLabel} · Uploaded{" "}
             {fmtDate(original.created_at)}
           </p>
         </div>
@@ -472,11 +478,11 @@ export default function LabResultReview({ labResultId, onBack, onChanged }) {
             </div>
             <div className='lab-info-row'>
               <dt>Parser</dt>
-              <dd>v{original.parser_version}</dd>
+              <dd>v{parserVersion}</dd>
             </div>
             <div className='lab-info-row'>
               <dt>Source</dt>
-              <dd>{original.source_format.toUpperCase()}</dd>
+              <dd>{sourceLabel}</dd>
             </div>
           </dl>
         </div>

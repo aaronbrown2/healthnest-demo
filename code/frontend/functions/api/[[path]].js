@@ -577,6 +577,8 @@ async function labById(db, sessionId, id) {
   const entryRows = entries.results || [];
   return {
     ...lab,
+    source_format: lab.source_format || "demo",
+    parser_version: lab.parser_version || "demo",
     entries: entryRows,
     entries_count: entryRows.length,
     flagged_count: entryRows.filter((entry) => entry.abnormal_flag && entry.abnormal_flag !== "normal").length,
