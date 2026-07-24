@@ -11,10 +11,29 @@ import { labResultsApi } from "../lib/labResultsApi";
 import PatientTypeahead from "../patient/PatientTypeahead";
 import "./labResults.css";
 
+const MAX_LAB_UPLOAD_BYTES = 25 * 1024 * 1024;
+const LAB_FILE_ACCEPT =
+  ".hl7,.txt,.json,.xml,application/json,application/fhir+json,application/xml,text/xml,application/fhir+xml,text/plain";
+const SUPPORTED_LAB_EXTENSIONS = new Set(["hl7", "txt", "json", "xml"]);
+
 function formatBytes(n) {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / 1024 / 1024).toFixed(2)} MB`;
+}
+
+function validateLabFile(file) {
+  if (!file) return null;
+  if (file.size === 0) return "Choose a non-empty lab result file.";
+  if (file.size > MAX_LAB_UPLOAD_BYTES) {
+    return "Lab result files must be 25 MB or smaller.";
+  }
+
+  const extension = file.name.toLowerCase().split(".").pop();
+  if (!SUPPORTED_LAB_EXTENSIONS.has(extension)) {
+    return "HealthNest accepts HL7 v2, FHIR JSON, or FHIR XML files in this demo.";
+  }
+  return null;
 }
 
 export default function LabResultUploadModal({
@@ -26,9 +45,15 @@ export default function LabResultUploadModal({
   const [patient, setPatient] = useState(null);
   const [dragging, setDragging] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState(() => validateLabFile(initialFile));
 
-  const valid = !!file && !!patient;
+  const fileError = validateLabFile(file);
+  const valid = !!file && !!patient && !fileError;
+
+  function pickFile(nextFile) {
+    setFile(nextFile);
+    setError(validateLabFile(nextFile));
+  }
 
   async function handleSubmit() {
     if (!valid) return;
@@ -51,7 +76,7 @@ export default function LabResultUploadModal({
     ev.preventDefault();
     setDragging(false);
     const f = ev.dataTransfer?.files?.[0];
-    if (f) setFile(f);
+    if (f) pickFile(f);
   }
 
   return (
@@ -99,15 +124,15 @@ export default function LabResultUploadModal({
                   <strong>Drop a file</strong> or click to browse
                 </div>
                 <div className='lab-field-hint' style={{ marginTop: 4 }}>
-                  HL7 v2, FHIR JSON, FHIR XML, PDF, or CSV
+                  HL7 v2, FHIR JSON, or FHIR XML
                 </div>
               </>
             )}
             <input
               type='file'
-              accept='.hl7,.txt,.json,.xml,.pdf,.csv,application/json,application/xml,text/xml,application/pdf,text/csv'
+              accept={LAB_FILE_ACCEPT}
               style={{ display: "none" }}
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
+              onChange={(e) => pickFile(e.target.files?.[0] || null)}
             />
           </label>
 

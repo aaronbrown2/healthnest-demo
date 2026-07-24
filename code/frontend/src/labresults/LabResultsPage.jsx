@@ -18,6 +18,9 @@ import LabResultUploadModal from "../labresults/LabResultUploadModal";
 import Toast from "./Toast";
 import "./labResults.css";
 
+const LAB_FILE_ACCEPT =
+  ".hl7,.txt,.json,.xml,application/json,application/fhir+json,application/xml,text/xml,application/fhir+xml,text/plain";
+
 const TABS = [
   { value: "lab-upload", label: "Lab Upload" },
 ];
@@ -204,7 +207,7 @@ export default function LabResultsPage({ onBack, onOpenReview }) {
         </div>
         <div className='lab-dropzone-title'>Drop lab results here</div>
         <div className='lab-dropzone-sub'>
-          Up to 25 MB
+          HL7 v2, FHIR JSON, or FHIR XML · up to 25 MB
         </div>
         <div className='lab-dropzone-actions'>
           <button
@@ -220,7 +223,7 @@ export default function LabResultsPage({ onBack, onOpenReview }) {
         <input
           ref={fileInputRef}
           type='file'
-          accept='.hl7,.txt,.json,.xml,.pdf,.csv,application/json,application/xml,text/xml,application/pdf,text/csv'
+          accept={LAB_FILE_ACCEPT}
           style={{ display: "none" }}
           onChange={onFilePicked}
         />

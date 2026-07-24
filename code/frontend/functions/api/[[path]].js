@@ -3,6 +3,9 @@ const PATIENT_USER_ID = "patient-user-maya";
 const PROVIDER_USER_ID = "provider-user-chen";
 const PATIENT_ID = "patient-maya";
 const PROVIDER_ID = "provider-chen";
+const LAB_UPLOAD_MAX_BYTES = 25 * 1024 * 1024;
+const LAB_UPLOAD_FORMATS = new Set(["hl7v2", "json", "xml"]);
+const LAB_UPLOAD_EXTENSIONS = new Set(["hl7", "txt", "json", "xml"]);
 
 const mutableTables = [
   "provider_availability",
@@ -51,6 +54,7 @@ export async function onRequest(context) {
     if (request.method === "GET" && path === "/messages/inbox") return json([]);
     if (request.method === "POST" && path === "/messages") return sendMessage(db, sessionId, request);
     if (request.method === "GET" && path === "/lab-results") return json(await listLabs(db, sessionId, url.searchParams, currentRole(request)));
+    if (request.method === "POST" && path === "/lab-results") return uploadLabResult(db, sessionId, request);
     if (request.method === "GET" && path === "/providers/visit-overviews") return json(await visitOverviews(db, sessionId));
     if (request.method === "GET" && path === "/providers/unsigned-encounters") return json(await unsignedEncounters(db, sessionId));
     if (request.method === "POST" && path === "/providers/encounter-notes") return encounterNote(db, sessionId, request);
@@ -145,6 +149,36 @@ function currentUserId(role) {
 
 async function body(request) {
   return request.json().catch(() => ({}));
+}
+
+function inferLabUploadFormat(file, sourceFormat) {
+  const normalized = String(sourceFormat || "").trim().toLowerCase();
+  if (normalized) return LAB_UPLOAD_FORMATS.has(normalized) ? normalized : null;
+
+  const extension = String(file?.name || "")
+    .toLowerCase()
+    .split(".")
+    .pop();
+  if (extension === "hl7" || extension === "txt") return "hl7v2";
+  if (extension === "json") return "json";
+  if (extension === "xml") return "xml";
+  return null;
+}
+
+function validateLabUploadFile(file, sourceFormat) {
+  if (!file || typeof file === "string") return "Choose a lab result file to upload.";
+  if (!file.name) return "Uploaded lab files must include a filename.";
+  if (!file.size) return "Uploaded lab files cannot be empty.";
+  if (file.size > LAB_UPLOAD_MAX_BYTES) return "Lab result files must be 25 MB or smaller.";
+
+  const extension = file.name.toLowerCase().split(".").pop();
+  if (!LAB_UPLOAD_EXTENSIONS.has(extension)) {
+    return "This demo accepts HL7 v2, FHIR JSON, or FHIR XML lab files.";
+  }
+  if (!inferLabUploadFormat(file, sourceFormat)) {
+    return "source_format must be one of: hl7v2, json, xml.";
+  }
+  return null;
 }
 
 async function demoAuth(request) {
@@ -458,6 +492,48 @@ async function usersShareActiveRelationship(db, userA, userB) {
       AND ((p.user_id = ? AND pr.user_id = ?) OR (p.user_id = ? AND pr.user_id = ?))
     LIMIT 1`).bind(userA, userB, userB, userA).first();
   return Boolean(row);
+}
+
+async function uploadLabResult(db, sessionId, request) {
+  if (currentRole(request) !== "provider") {
+    return json({ detail: "Only providers can upload lab results." }, 403);
+  }
+
+  const form = await request.formData().catch(() => null);
+  if (!form) return json({ detail: "Expected multipart form data." }, 400);
+
+  const file = form.get("file");
+  const patientId = String(form.get("patient_id") || "");
+  const sourceFormat = form.get("source_format");
+  if (!patientId) return json({ detail: "patient_id is required." }, 400);
+
+  const validationError = validateLabUploadFile(file, sourceFormat);
+  if (validationError) return json({ detail: validationError }, 400);
+
+  const relationship = await db.prepare("SELECT 1 FROM care_team WHERE patient_id = ? AND provider_id = ? AND active = 1").bind(patientId, PROVIDER_ID).first();
+  if (!relationship) return json({ detail: "Patient is not on your care team." }, 403);
+
+  const id = `lab-${crypto.randomUUID().slice(0, 8)}`;
+  const now = new Date();
+  const collectedAt = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+  const resultedAt = now.toISOString();
+  const entries = [
+    ["Glucose", "2345-7", "128", "mg/dL", "70-99", "high"],
+    ["Sodium", "2951-2", "139", "mmol/L", "134-144", "normal"],
+    ["Potassium", "2823-3", "4.2", "mmol/L", "3.5-5.2", "normal"],
+    ["Creatinine", "2160-0", "0.91", "mg/dL", "0.57-1.00", "normal"],
+  ];
+
+  await db.batch([
+    db.prepare("INSERT INTO lab_results (session_id, id, patient_id, lab_name, status, collected_at, resulted_at, released_at) VALUES (?, ?, ?, ?, 'uploaded', ?, ?, NULL)")
+      .bind(sessionId, id, patientId, "Uploaded Lab Panel", collectedAt, resultedAt),
+    ...entries.map(([component, loinc, value, unit, range, flag], index) =>
+      db.prepare("INSERT INTO lab_result_entries (session_id, id, lab_result_id, component_name, loinc_code, value, unit, reference_range, abnormal_flag) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .bind(sessionId, `${id}-${index + 1}`, id, component, loinc, value, unit, range, flag),
+    ),
+  ]);
+
+  return json(await labById(db, sessionId, id), 201);
 }
 
 async function listLabs(db, sessionId, params, role) {

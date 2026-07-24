@@ -27,6 +27,8 @@ jest.mock("../patient/PatientTypeahead", () => {
   };
 });
 
+import { labResultsApi } from "../lib/labResultsApi";
+
 describe("LabResultUploadModal", () => {
   afterEach(() => {
     jest.clearAllMocks();
@@ -83,5 +85,26 @@ describe("LabResultUploadModal", () => {
     fireEvent.click(screen.getByLabelText("Close"));
 
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  test("rejects unsupported demo upload file types", () => {
+    const { container } = render(
+      <LabResultUploadModal onClose={jest.fn()} onUploaded={jest.fn()} />,
+    );
+    const input = container.querySelector("input[type='file']");
+    const file = new File(["hello"], "cover-letter.pdf", {
+      type: "application/pdf",
+    });
+
+    fireEvent.change(input, { target: { files: [file] } });
+    fireEvent.click(screen.getByTestId("patient-typeahead"));
+
+    expect(
+      screen.getByText(
+        "HealthNest accepts HL7 v2, FHIR JSON, or FHIR XML files in this demo.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Upload & review")).toBeDisabled();
+    expect(labResultsApi.upload).not.toHaveBeenCalled();
   });
 });
