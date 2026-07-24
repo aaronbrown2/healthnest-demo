@@ -142,4 +142,32 @@ describe("PatientDashboard", () => {
 
     expect(onNavigate).toHaveBeenCalledWith("appointments");
   });
+
+  test("active medications card opens the read-only medication list", async () => {
+    renderPatientDashboard();
+
+    const user = userEvent.setup();
+    await user.click(
+      screen.getByRole("button", { name: /Active Medications/i }),
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Active Medications" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Metformin")).toBeInTheDocument();
+    expect(screen.getByText("Refill Aug 12")).toBeInTheDocument();
+    expect(screen.getByText("Take with meals.")).toBeInTheDocument();
+  });
+
+  test("active medications view all link opens the read-only medication list", async () => {
+    renderPatientDashboard();
+
+    const user = userEvent.setup();
+    // The appointments card renders first; meds/labs cards have their own.
+    await user.click(screen.getAllByRole("button", { name: "View all" })[1]);
+
+    expect(
+      screen.getByRole("heading", { name: "Active Medications" }),
+    ).toBeInTheDocument();
+  });
 });

@@ -324,6 +324,132 @@
   white-space: nowrap;
 }
 
+/* ── Medication detail page ── */
+.med-page {
+  max-width: 860px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.med-back-link {
+  background: none;
+  border: none;
+  color: #71716e;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  margin-bottom: 28px;
+  padding: 0;
+}
+
+.med-back-link:hover {
+  color: #111110;
+}
+
+.med-header {
+  margin-bottom: 24px;
+}
+
+.med-eyebrow {
+  color: #9c9c9b;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.med-title {
+  color: #111110;
+  font-family: "Instrument Serif", Georgia, serif;
+  font-size: 38px;
+  font-weight: 300;
+  letter-spacing: 0;
+}
+
+.med-subtitle {
+  color: #71716e;
+  font-size: 14px;
+  margin-top: 8px;
+}
+
+.med-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.med-card {
+  background: #fff;
+  border: 1px solid #f2f2f1;
+  border-radius: 12px;
+  padding: 22px 24px;
+}
+
+.med-card-main {
+  align-items: flex-start;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+}
+
+.med-card-main h2 {
+  color: #111110;
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.med-card-main p {
+  color: #71716e;
+  font-size: 14px;
+}
+
+.med-refill {
+  background: #f2f2f1;
+  border-radius: 999px;
+  color: #71716e;
+  flex-shrink: 0;
+  font-size: 12px;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
+.med-meta {
+  border-top: 1px solid #f2f2f1;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 180px 1fr;
+  margin-top: 18px;
+  padding-top: 18px;
+}
+
+.med-meta dt {
+  color: #9c9c9b;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+.med-meta dd {
+  color: #111110;
+  font-size: 14px;
+}
+
+@media (max-width: 640px) {
+  .med-card {
+    padding: 18px;
+  }
+
+  .med-card-main {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .med-meta {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ── Labs ── */
 .dash-lab-row {
   display: flex;

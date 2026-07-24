@@ -53,19 +53,25 @@ const activeMed = [
     name: "Lisinopril",
     dose: "10 mg",
     frequency: "Once daily",
-    refillDue: "Jun 5",
+    refillDue: "Jul 31",
+    prescriber: "Dr. Elena Chen",
+    instructions: "Take in the morning. Monitor for dizziness.",
   },
   {
     name: "Metformin",
     dose: "500 mg",
     frequency: "Twice daily",
-    refillDue: "May 28",
+    refillDue: "Aug 12",
+    prescriber: "Dr. Elena Chen",
+    instructions: "Take with meals.",
   },
   {
     name: "Vitamin D3",
     dose: "2000 IU",
     frequency: "Once daily",
-    refillDue: "Aug 12",
+    refillDue: "Sep 4",
+    prescriber: "Dr. Elena Chen",
+    instructions: "Over-the-counter supplement.",
   },
 ];
 
@@ -336,6 +342,50 @@ function AccountSettings({ user, currentUser, onBack }) {
   );
 }
 
+function MedicationsPage({ onBack }) {
+  return (
+    <section className='med-page'>
+      <button type='button' className='med-back-link' onClick={onBack}>
+        Back to dashboard
+      </button>
+
+      <div className='med-header'>
+        <p className='med-eyebrow'>Medication List</p>
+        <h1 className='med-title'>Active Medications</h1>
+        <p className='med-subtitle'>
+          Current medications shown for the public demo account.
+        </p>
+      </div>
+
+      <div className='med-list'>
+        {activeMed.map((med) => (
+          <article key={med.name} className='med-card'>
+            <div className='med-card-main'>
+              <div>
+                <h2>{med.name}</h2>
+                <p>
+                  {med.dose} · {med.frequency}
+                </p>
+              </div>
+              <span className='med-refill'>Refill {med.refillDue}</span>
+            </div>
+            <dl className='med-meta'>
+              <div>
+                <dt>Prescriber</dt>
+                <dd>{med.prescriber}</dd>
+              </div>
+              <div>
+                <dt>Instructions</dt>
+                <dd>{med.instructions}</dd>
+              </div>
+            </dl>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export default function PatientDashboard({
   user,
   onNavigate,
@@ -476,7 +526,7 @@ export default function PatientDashboard({
           o === "Messages" ? { label: o, badge: unreadMessages } : o,
         )}
         activeKey={
-          view === "home"
+          view === "home" || view === "medications"
             ? "Dashboard"
             : view === "labs" || view === "lab-detail"
               ? "Records"
@@ -523,6 +573,10 @@ export default function PatientDashboard({
           />
         )}
 
+        {view === "medications" && (
+          <MedicationsPage onBack={() => setView("home")} />
+        )}
+
         {view !== "home" ? null : (
           <>
             <div className='dash-header'>
@@ -562,13 +616,12 @@ export default function PatientDashboard({
                     : onNavigate?.("appointments")
                 }
               />
-              {/* Medications are still demo data (no meds backend yet);
-                  the soonest refill in that list is Metformin's. */}
               <SummaryCard
                 icon={<Pill size={16} />}
                 label="Active Medications"
                 value={String(activeMed.length)}
-                detail={`Next refill ${activeMed[1].refillDue}`}
+                detail={`Next refill ${activeMed[0].refillDue}`}
+                onClick={() => setView("medications")}
               />
               <SummaryCard
                 icon={<Activity size={16} />}
@@ -623,7 +676,11 @@ export default function PatientDashboard({
                 <div className='dash-card'>
                   <div className='dash-card-header'>
                     <h3 className='dash-card-title'>Active Medications</h3>
-                    <button className='dash-view-all'>View all</button>
+                    <button
+                      className='dash-view-all'
+                      onClick={() => setView("medications")}>
+                      View all
+                    </button>
                   </div>
                   {activeMed.map((med) => (
                     <div key={med.name} className='dash-med-row'>
